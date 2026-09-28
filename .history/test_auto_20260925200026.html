@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>森林战纪 · 自动化测试</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header id="topbar">
+  <div class="tb-logo">🌲 森林战纪</div>
+  <div class="tb-mid">
+    <span class="tb-item">关卡：<b id="hudLevel">0</b></span>
+    <span class="tb-item">💰 金币：<b id="hudGold">0</b></span>
+    <span class="tb-item">👹 敌人：<b id="hudEnemy">0</b></span>
+    <span class="tb-phase" id="hudPhase">选择英雄</span>
+  </div>
+</header>
+
+<main id="main">
+  <div id="stage">
+
+    <!-- ============ 选择英雄 ============ -->
+    <section id="selectScreen" class="screen">
+      <div class="screen-title" id="selectTitle">选择你的英雄（已选 0/3，选满 3 名自动进入第一关）</div>
+      <div class="chosen-bar" id="chosenBar"></div>
+      <div id="selectCards" class="select-cards"></div>
+    </section>
+
+    <!-- ============ 战斗 ============ -->
+    <section id="battleScreen" class="screen hidden">
+      <div id="battlefield">
+        <div class="faction enemy">
+          <div class="faction-tag">敌方阵营</div>
+          <div class="grid" id="enemyGrid"></div>
+        </div>
+        <div id="midbar"><span id="turnFlag">⚔ 即时战斗中</span></div>
+        <div class="faction player">
+          <div class="grid" id="playerGrid"></div>
+          <div class="faction-tag">我方阵营</div>
+        </div>
+        <canvas id="fx"></canvas>
+        <div id="floatLayer"></div>
+      </div>
+    </section>
+
+    <!-- ============ 通关商店 ============ -->
+    <section id="shopScreen" class="screen hidden"></section>
+
+    <!-- ============ 战败 ============ -->
+    <section id="overScreen" class="screen hidden">
+      <div class="over-box">
+        <div class="over-title">全军覆没…</div>
+        <div class="over-sub">你坚持到了第 <b id="overLevel">1</b> 关</div>
+        <button class="btn primary" id="btnRestart">重新开始</button>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ============ 介绍栏（紧挨战斗 UI 下方） ============ -->
+  <aside id="infoPanel">
+    <div class="ip-title">介绍栏</div>
+    <div id="ipBody"></div>
+  </aside>
+</main>
+
+<script src="js/data.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/shop.js"></script>
+<script src="js/main.js"></script>
+<script>
+window.addEventListener('error', e => { document.body.setAttribute('data-jserr', e.message); });
+window.addEventListener('error', e => { document.body.setAttribute('data-jserr2', e.message + '@' + (e.filename||'').split('/').pop() + ':' + e.lineno); });
+window.__raf = 0; window.__loop = 0;
+(function(){
+  const _raf = window.requestAnimationFrame.bind(window);
+  window.requestAnimationFrame = cb => { window.__raf++; return _raf(cb); };
+})();
+
+setTimeout(() => {
+  try {
+    for (let i = 0; i < 3; i++) {
+      const btn = document.querySelector('[data-choose]');
+      if (btn) btn.click();   // 每次点击后候选卡会重建，需重新查询
+    }
+    document.body.setAttribute('data-picked', document.querySelectorAll('[data-choose]').length);
+    document.body.setAttribute('data-phase1', G.phase);
+  } catch (e) { document.body.setAttribute('data-jserr', 'pick:' + e.message); }
+}, 300);
+setTimeout(() => {
+  try {
+    document.body.setAttribute('data-phase4', G.phase);
+    document.body.setAttribute('data-barnum', document.querySelectorAll('.bar-num').length);
+    document.body.setAttribute('data-mnbar', document.querySelectorAll('.mnbar').length);
+    document.body.setAttribute('data-turnflag', document.getElementById('turnFlag').textContent);
+    document.body.setAttribute('data-iskill', document.querySelectorAll('.iskill').length);
+  } catch (e) { document.body.setAttribute('data-jserr', 'snap4:' + e.message); }
+}, 4000);
+/* 插桩：统计 update / doAttack / applyHit 调用次数 */
+setTimeout(() => {
+  try {
+    window.__upd = 0; window.__da = 0; window.__ah = 0;
+    const _l = window.loop; window.loop = function(ts){ window.__loop++; return _l(ts); };
+    const _u = window.update; window.update = function(dt){ window.__upd++; return _u(dt); };
+    const _d = window.doAttack; window.doAttack = function(u){ window.__da++; return _d(u); };
+    const _a = window.applyHit; window.applyHit = function(t,s,p,o){ window.__ah++; return _a(t,s,p,o); };
+    document.body.setAttribute('data-inst', 'on');
+  } catch (e) { document.body.setAttribute('data-jserr', 'inst:' + e.message); }
+}, 1000);
+
+/* 手动驱动战斗：headless 虚拟时间下 rAF 早停，绕过 rAF 直接调用 update */
+setTimeout(() => {
+  window.__driveErr = '';
+  window.__drive = setInterval(() => {
+    if (G.phase !== 'battle') { clearInterval(window.__drive); document.body.setAttribute('data-driven', 'end:' + G.phase); return; }
+    for (let i = 0; i < 20; i++) {
+      try { window.update(0.05); }
+      catch (e) { window.__driveErr = e.message; clearInterval(window.__drive);
+                  document.body.setAttribute('data-driveerr', e.message); return; }
+    }
+  }, 5);
+}, 1200);
+
+function snap(tag){
+  const mine = G.formation.filter(u => u.alive).length;
+  const foes  = (G.enemies || []).filter(u => u.alive).length;
+  const myHp  = G.formation.reduce((s, u) => s + Math.max(0, Math.round(u.hp)), 0);
+  const foHp  = (G.enemies || []).reduce((s, u) => s + Math.max(0, Math.round(u.hp)), 0);
+  const t0 = Math.round(performance.now());
+  document.body.setAttribute('data-snap' + tag, G.phase + '|alive ' + mine + '/' + foes +
+    '|hp ' + myHp + '/' + foHp + '|upd=' + (window.__upd||0) + ' da=' + (window.__da||0) +
+    ' ah=' + (window.__ah||0) + '|loop=' + (window.__loop||0) + ' raf=' + (window.__raf||0) +
+    '|now=' + t0 + '|tmr=' +
+    (G.formation[0] ? G.formation[0].atkTimer.toFixed(2) : '-'));
+}
+setTimeout(() => { try { snap('8'); } catch(e){ document.body.setAttribute('data-jserr','s8:'+e.message); } }, 8000);
+setTimeout(() => { try { snap('16'); } catch(e){ document.body.setAttribute('data-jserr','s16:'+e.message); } }, 16000);
+setTimeout(() => {
+  try {
+    snap('24');
+    document.body.setAttribute('data-phase-after-battle', document.getElementById('hudPhase').textContent);
+    if (G.phase === 'battle') { UI.setScreen('shop'); Shop.open(); }
+    document.body.setAttribute('data-phase2', G.phase);
+    document.body.setAttribute('data-optdesc', document.querySelectorAll('.opt-desc').length);
+  } catch (e) { document.body.setAttribute('data-jserr', 'shop:' + e.message); }
+}, 24000);
+</script>
+</body>
+</html>

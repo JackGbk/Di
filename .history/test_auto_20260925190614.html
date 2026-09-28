@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>森林战纪 · 自动化测试</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header id="topbar">
+  <div class="tb-logo">🌲 森林战纪</div>
+  <div class="tb-mid">
+    <span class="tb-item">关卡：<b id="hudLevel">0</b></span>
+    <span class="tb-item">💰 金币：<b id="hudGold">0</b></span>
+    <span class="tb-item">👹 敌人：<b id="hudEnemy">0</b></span>
+    <span class="tb-phase" id="hudPhase">选择英雄</span>
+  </div>
+</header>
+
+<main id="main">
+  <div id="stage">
+
+    <section id="selectScreen" class="screen">
+      <div class="screen-title" id="selectTitle">选择你的英雄（已选 0/3，选满 3 名自动进入第一关）</div>
+      <div class="chosen-bar" id="chosenBar"></div>
+      <div id="selectCards" class="select-cards"></div>
+    </section>
+
+    <section id="battleScreen" class="screen hidden">
+      <div id="battlefield">
+        <div class="faction enemy">
+          <div class="faction-tag">敌方阵营</div>
+          <div class="grid" id="enemyGrid"></div>
+        </div>
+        <div id="midbar"><span id="turnFlag">⚔ 我方行动</span></div>
+        <div class="faction player">
+          <div class="grid" id="playerGrid"></div>
+          <div class="faction-tag">我方阵营</div>
+        </div>
+        <canvas id="fx"></canvas>
+        <div id="floatLayer"></div>
+      </div>
+    </section>
+
+    <section id="shopScreen" class="screen hidden"></section>
+
+    <section id="overScreen" class="screen hidden">
+      <div class="over-box">
+        <div class="over-title">全军覆没…</div>
+        <div class="over-sub">你坚持到了第 <b id="overLevel">1</b> 关</div>
+        <button class="btn primary" id="btnRestart">重新开始</button>
+      </div>
+    </section>
+
+  </div>
+
+  <aside id="infoPanel">
+    <div class="ip-title">介绍栏</div>
+    <div id="ipBody"></div>
+  </aside>
+</main>
+
+<script src="js/data.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/shop.js"></script>
+<script src="js/main.js"></script>
+<script>
+/* 自动化测试：连续点选 3 名英雄，验证自动进入第一关 */
+let _picks = 0;
+const _iv = setInterval(() => {
+  const btn = document.querySelector('#selectCards [data-choose]');
+  if(btn){ btn.click(); _picks++; }
+  if(_picks >= 3) clearInterval(_iv);
+}, 120);
+</script>
+</body>
+</html>

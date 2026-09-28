@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>森林战纪 · 阵营自走棋</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header id="topbar">
+  <div class="tb-logo">🌲 森林战纪</div>
+  <div class="tb-mid">
+    <span class="tb-item">关卡：<b id="hudLevel">0</b></span>
+    <span class="tb-item">💰 金币：<b id="hudGold">0</b></span>
+    <span class="tb-item">👹 敌人：<b id="hudEnemy">0</b></span>
+    <span class="tb-phase" id="hudPhase">选择英雄</span>
+  </div>
+  <!-- 战斗速度 / 暂停（仅战斗中显示；空格暂停，键盘 1/2/3 切换倍速） -->
+  <div class="tb-speed hidden" id="tbSpeed">
+    <button class="btn spd-btn" id="btnPause" title="暂停 / 继续（空格）">⏸</button>
+    <button class="btn spd-btn active" data-speed="1" title="正常速度（键盘 1）">×1</button>
+    <button class="btn spd-btn" data-speed="2" title="2 倍速（键盘 2）">×2</button>
+    <button class="btn spd-btn" data-speed="3" title="3 倍速（键盘 3）">×3</button>
+  </div>
+</header>
+
+<main id="main">
+  <div id="stage">
+
+    <!-- ============ 选择英雄 ============ -->
+    <section id="selectScreen" class="screen">
+      <div class="screen-title" id="selectTitle">选择你的英雄（已选 0/3，选满 3 名自动进入第一关）</div>
+      <div class="chosen-bar" id="chosenBar"></div>
+      <div id="selectCards" class="select-cards"></div>
+    </section>
+
+    <!-- ============ 战斗 ============ -->
+    <section id="battleScreen" class="screen hidden">
+      <div id="battlefield">
+        <div class="faction enemy">
+          <div class="faction-tag">敌方阵营</div>
+          <div class="grid" id="enemyGrid"></div>
+        </div>
+        <div id="midbar"><span id="turnFlag">⚔ 即时战斗中</span></div>
+        <div class="faction player">
+          <div class="grid" id="playerGrid"></div>
+          <div class="faction-tag">我方阵营</div>
+        </div>
+        <canvas id="fx"></canvas>
+        <div id="floatLayer"></div>
+      </div>
+    </section>
+
+    <!-- ============ 通关商店（备用，暂不调用） ============ -->
+    <section id="shopScreen" class="screen hidden"></section>
+
+    <!-- ============ 战后装备三选一 ============ -->
+    <section id="lootScreen" class="screen hidden"></section>
+
+    <!-- ============ 战后祝福三选一 ============ -->
+    <section id="blessScreen" class="screen hidden"></section>
+
+    <!-- ============ 奇遇事件 ============ -->
+    <section id="encScreen" class="screen hidden"></section>
+
+    <!-- ============ 战败 ============ -->
+    <section id="overScreen" class="screen hidden">
+      <div class="over-box">
+        <div class="over-title" id="overTitle">全军覆没…</div>
+        <div class="over-sub" id="overSub">你坚持到了第 <b id="overLevel">1</b> 关</div>
+        <button class="btn primary" id="btnRestart">重新开始</button>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ============ 介绍栏（紧挨战斗 UI 下方） ============ -->
+  <aside id="infoPanel">
+    <div class="ip-title">介绍栏
+      <span class="ip-codex">
+        <button class="btn codex-btn" data-codex="hero">🧝 英雄图鉴</button>
+        <button class="btn codex-btn" data-codex="equip">⚔ 装备图鉴</button>
+      </span>
+    </div>
+    <div id="ipBody"></div>
+  </aside>
+</main>
+
+<!-- 悬停属性提示框（装备，含档位颜色） -->
+<div id="hoverTip" class="hover-tip hidden"></div>
+
+<script src="js/data.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/shop.js"></script>
+<script src="js/loot.js"></script>
+<script src="js/blessing.js"></script>
+<script src="js/encounter.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

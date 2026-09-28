@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>森林战纪 · 阵营自走棋</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header id="topbar">
+  <div class="tb-logo">🌲 森林战纪</div>
+  <div class="tb-mid">
+    <span class="tb-item">关卡：<b id="hudLevel">0</b></span>
+    <span class="tb-item">💰 金币：<b id="hudGold">0</b></span>
+    <span class="tb-item">👹 敌人：<b id="hudEnemy">0</b></span>
+    <span class="tb-phase" id="hudPhase">选择英雄</span>
+  </div>
+</header>
+
+<main id="main">
+  <div id="stage">
+
+    <!-- ============ 选择英雄 ============ -->
+    <section id="selectScreen" class="screen">
+      <div class="screen-title">选择你的英雄（3 选 1，游戏开始）</div>
+      <div id="selectCards" class="select-cards"></div>
+    </section>
+
+    <!-- ============ 战斗 ============ -->
+    <section id="battleScreen" class="screen hidden">
+      <div id="battlefield">
+        <div class="faction enemy">
+          <div class="faction-tag">敌方阵营</div>
+          <div class="grid" id="enemyGrid"></div>
+        </div>
+        <div id="midbar"><span id="turnFlag">⚔ 我方行动</span></div>
+        <div class="faction player">
+          <div class="grid" id="playerGrid"></div>
+          <div class="faction-tag">我方阵营</div>
+        </div>
+        <canvas id="fx"></canvas>
+        <div id="floatLayer"></div>
+      </div>
+    </section>
+
+    <!-- ============ 通关商店 ============ -->
+    <section id="shopScreen" class="screen hidden"></section>
+
+    <!-- ============ 战败 ============ -->
+    <section id="overScreen" class="screen hidden">
+      <div class="over-box">
+        <div class="over-title">全军覆没…</div>
+        <div class="over-sub">你坚持到了第 <b id="overLevel">1</b> 关</div>
+        <button class="btn primary" id="btnRestart">重新开始</button>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ============ 介绍栏（固定大小） ============ -->
+  <aside id="infoPanel">
+    <div class="ip-title">介绍栏</div>
+    <div id="ipBody"></div>
+  </aside>
+</main>
+
+<script src="js/data.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/shop.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

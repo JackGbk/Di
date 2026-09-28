@@ -1,0 +1,233 @@
+'use strict';
+
+/* ================= 通关选择商店 ================= */
+const Shop = {
+  options: [],
+  sel: null,      // 当前查看说明的选项 id
+  armed: false,   // 已显示说明，再次点击生效
+  msg: null,
+
+  open(){
+    // 每档英雄随机一个（只随机一次，保证 id / 名称 / 图标一致）
+    const heroOpts = [20, 40, 60].map(tier => {
+      const pool = HEROES.filter(h => h.tier === tier);
+      const h = pickOne(pool);
+      return { id:'h_' + tier + '_' + h.id,
+               cat:'英雄', icon:h.emoji, name:h.name, price:tier, hero:h };
+    });
+
+    this.options = [
+      ...ITEMS.map(it => ({ id:'i_' + it.id, cat:'道具', icon:it.icon, name:it.name, price:it.price, item:it })),
+      ...EQUIPS.map(eq => ({ id:'e_' + eq.id, cat:'装备', icon:eq.icon, name:eq.name, price:eq.price, item:eq })),
+      ...heroOpts,
+    ];
+    this.sel = null;
+    this.armed = false;
+    this.msg = null;
+    if(G.currentHeroIdx >= G.formation.length) G.currentHeroIdx = 0;
+    this.render();
+    UI.info('unit', G.formation[G.currentHeroIdx]);
+  },
+
+  currentHero(){ return G.formation[G.currentHeroIdx] || null; },
+
+  render(){
+    // 注意：局部变量不能叫 nextLevel，否则会遮蔽全局 nextLevel() 函数
+    const nl = G.level + 1;
+    const nextCount = rollEnemyCount(nl);
+    const nextTypes = rollEnemyTypes(nl);
+    const typeCount = {};
+    nextTypes.forEach(t => typeCount[t] = (typeCount[t] || 0) + 1);
+    const typeStr = Object.keys(typeCount).map(t => ENEMY_TYPES[t].name + '×' + typeCount[t]).join('、');
+
+    const html =
+      '<div class="shop-wrap">' +
+        '<div class="shop-top">' +
+          '<span>🏆 第 <b>' + G.level + '</b> 关通过！</span>' +
+          '<span class="reward">获得 +' + G.reward + ' 金币</span>' +
+          '<span>💰 当前金币：<b id="shopGold">' + G.gold + '</b></span>' +
+          '<span class="hint">下一关（第 ' + nl + ' 关）预计敌人 ' + nextCount + ' 个：' + typeStr + '</span>' +
+        '</div>' +
+        '<div class="shop-cols">' +
+          '<div class="panel shop-heroes">' +
+            '<div class="p-title">当前英雄（默认第一个，可点击切换）</div>' +
+            '<div class="hero-list" id="heroList"></div>' +
+            '<div class="shop-hint">道具 / 装备 将作用于选中的英雄</div>' +
+          '</div>' +
+          '<div class="panel shop-desc">' +
+            '<div class="p-title">选项说明框</div>' +
+            '<div class="desc-body" id="shopDesc"></div>' +
+          '</div>' +
+          '<div class="panel shop-opts">' +
+            '<div class="p-title">商店：点选项查看说明，再次点击生效</div>' +
+            this.optionsHtml() +
+          '</div>' +
+        '</div>' +
+        '<div class="shop-foot">' +
+          '<button class="btn primary" id="btnNext">✅ 选项生效完毕，进入第 ' + nl + ' 关 →</button>' +
+          '<span class="shop-hint">提示：金币可通过通关与击杀敌人获得（小兵+5 / 精英+10 / boss+20 / 精英boss+50）</span>' +
+        '</div>' +
+      '</div>';
+
+    const scr = document.getElementById('shopScreen');
+    scr.innerHTML = html;
+    this.renderHeroes();
+    this.showDesc();
+
+    scr.querySelector('#heroList').addEventListener('click', ev => {
+      const item = ev.target.closest('.hero-pick');
+      if(!item) return;
+      G.currentHeroIdx = Number(item.dataset.idx);
+      this.renderHeroes();
+      this.showDesc();
+      UI.info('unit', this.currentHero());
+    });
+    scr.querySelector('.shop-opts').addEventListener('click', ev => {
+      const btn = ev.target.closest('.opt');
+      if(!btn || btn.classList.contains('disabled')) return;
+      this.onOption(btn.dataset.opt);
+    });
+    scr.querySelector('#btnNext').addEventListener('click', () => window.nextLevel());
+    UI.updateHeader();
+  },
+
+  optionsHtml(){
+    const cats = ['道具', '装备', '英雄'];
+    const icons = { '道具':'🧪', '装备':'⚔️', '英雄':'🧝' };
+    return cats.map(cat => {
+      const list = this.options.filter(o => o.cat === cat);
+      return '<div class="opt-group"><div class="opt-group-title">' + icons[cat] + ' ' + cat + '</div>' +
+        '<div class="opt-list">' +
+        list.map(o =>
+          '<button class="opt" data-opt="' + o.id + '">' +
+          '<span class="opt-ico">' + o.icon + '</span>' +
+          '<span class="opt-name">' + o.name + '</span>' +
+          '<span class="opt-price">' + o.price + '金</span>' +
+          '</button>').join('') +
+        '</div></div>';
+    }).join('');
+  },
+
+  renderHeroes(){
+    const list = document.getElementById('heroList');
+    if(!list) return;
+    list.innerHTML = G.formation.map((u, i) =>
+      '<div class="hero-pick' + (i === G.currentHeroIdx ? ' sel' : '') + '" data-idx="' + i + '">' +
+      '<span class="hp-emoji">' + u.def.emoji + '</span>' +
+      '<span><span class="hp-name">' + u.def.name + '</span>' +
+      '<span class="hp-sub">' + POS_NAMES[u.posType] + ' · 装备 ' + u.equips.length + '/6 · 击杀 ' + u.kills + '</span></span>' +
+      '</div>').join('') ||
+      '<div class="shop-hint">暂无英雄</div>';
+  },
+
+  /* 第一次点击：显示说明；再次点击：生效 */
+  onOption(id){
+    const o = this.options.find(x => x.id === id);
+    if(!o) return;
+    if(this.sel !== id){
+      this.sel = id;
+      this.armed = true;
+      this.msg = null;
+      this.showDesc();
+      this.highlight();
+      return;
+    }
+    if(!this.armed){
+      this.armed = true;
+      this.showDesc();
+      return;
+    }
+    // 再次点击 → 生效
+    this.apply(o);
+  },
+
+  highlight(){
+    document.querySelectorAll('#shopScreen .opt').forEach(el => {
+      el.classList.toggle('sel', el.dataset.opt === this.sel);
+    });
+  },
+
+  showDesc(){
+    const box = document.getElementById('shopDesc');
+    if(!box) return;
+    if(!this.sel){
+      box.innerHTML = '<div class="desc-title">请选择选项</div>' +
+        '<div class="kv">点击右侧任意选项，这里会显示它的说明；' +
+        '<b>再次点击该选项</b>即可对当前选中的英雄生效。<br><br>' +
+        '· 道具：直接使用，属性永久加在当前英雄身上<br>' +
+        '· 装备：装入当前英雄的 6 个装备格子<br>' +
+        '· 英雄：加入你的阵营（自动选择位置）</div>' +
+        (this.msg ? '<div class="desc-msg ' + this.msg.cls + '">' + this.msg.text + '</div>' : '');
+      return;
+    }
+    const o = this.options.find(x => x.id === this.sel);
+    const hero = this.currentHero();
+    let body = '';
+    if(o.cat === '英雄'){
+      const sks = (o.hero.skills || []).map(id => SKILLS[id]).filter(Boolean);
+      body = '<div class="desc-title">' + o.icon + ' ' + o.name + '</div>' +
+        '<span class="desc-tag">英雄 · ' + HERO_TIERS[o.price] + '档</span>' +
+        '<div class="desc-price">价格：' + o.price + ' 金币</div>' +
+        '<div class="kv">' + POS_NAMES[o.hero.pos] + ' ｜ ' + o.hero.bio + '</div><br>' +
+        sks.map(sk => '<b>' + (sk.type === 'active' ? '【主动】' : '【被动】') + sk.name + '</b><br>' + sk.desc + '<br>').join('');
+    } else {
+      const statLine = Object.keys(o.item.stats || {}).map(k => {
+        const row = STAT_ROWS.find(r => r[0] === k);
+        const label = row ? row[1].split(' ')[1] : k;
+        const pct = row ? row[2] : 0;
+        return label + ' +' + o.item.stats[k] + (pct ? '%' : '');
+      }).join('，');
+      body = '<div class="desc-title">' + o.icon + ' ' + o.name + '</div>' +
+        '<span class="desc-tag">' + o.cat + '</span>' +
+        '<div class="desc-price">价格：' + o.price + ' 金币</div>' +
+        '<div class="kv">属性：' + statLine + '</div><br>' +
+        o.item.desc + '<br><br>' +
+        '<div class="kv">生效目标：' + (hero ? hero.def.name : '（无英雄）') + '</div>';
+    }
+    box.innerHTML = body +
+      '<div class="desc-msg' + (this.msg ? ' ' + this.msg.cls : '') + '">' +
+      (this.msg ? this.msg.text : '再次点击该选项即可生效') + '</div>';
+  },
+
+  apply(o){
+    const hero = this.currentHero();
+    const setMsg = (text, cls) => { this.msg = { text, cls }; this.showDesc(); };
+
+    if(G.gold < o.price){ setMsg('❌ 金币不足，需要 ' + o.price + ' 金币', 'err'); this.armed = true; return; }
+
+    if(o.cat === '道具'){
+      if(!hero){ setMsg('❌ 没有可生效的英雄', 'err'); return; }
+      G.gold -= o.price;
+      addStats(hero.itemStats, o.item.stats);
+      hero._frame = -1;
+      refreshMaxHp(hero);
+      setMsg('✅ 已对 ' + hero.def.name + ' 使用 ' + o.name + '！', 'ok');
+    }
+    else if(o.cat === '装备'){
+      if(!hero){ setMsg('❌ 没有可生效的英雄', 'err'); return; }
+      if(hero.equips.length >= 6){ setMsg('❌ ' + hero.def.name + ' 的装备格子已满（6/6）', 'err'); return; }
+      G.gold -= o.price;
+      hero.equips.push(o.item);
+      hero._frame = -1;
+      refreshMaxHp(hero);
+      setMsg('✅ ' + o.name + ' 已装备给 ' + hero.def.name + '（' + hero.equips.length + '/6）', 'ok');
+    }
+    else if(o.cat === '英雄'){
+      if(G.formation.length >= FORMATION_CAP){ setMsg('❌ 阵容已满（' + FORMATION_CAP + '）', 'err'); return; }
+      G.gold -= o.price;
+      const u = createUnit(o.hero, 'player');
+      placeUnit(u);
+      G.formation.push(u);
+      G.currentHeroIdx = G.formation.length - 1;
+      setMsg('✅ ' + o.name + ' 已加入阵营！', 'ok');
+    }
+
+    this.armed = false;   // 生效完毕，需再次选择查看说明
+    const goldEl = document.getElementById('shopGold');
+    if(goldEl) goldEl.textContent = G.gold;
+    this.renderHeroes();
+    this.highlight();
+    UI.updateHeader();
+    UI.info('unit', this.currentHero());
+  },
+};
