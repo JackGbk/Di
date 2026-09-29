@@ -12,8 +12,40 @@ const UI = {
     });
     this.updateHeader();
     if(name === 'battle'){
+      this.renderTraitBar();
       requestAnimationFrame(() => { this.updatePositions(); resizeCanvas(); });
     }
+  },
+
+  /* ---------- 战斗界面上方：本关特点条 ----------
+   * 标出本关主题 + 类型徽章 + 难点一句话 + 小/大Boss名；
+   * 整条 title 悬停显示完整文本（类型应对提示 + 难点全文 + Boss 词条）。
+   * 仅在进入战斗（setScreen('battle')）时重建一次，不进每帧循环。 */
+  renderTraitBar(){
+    const bar = document.getElementById('lvTraitBar');
+    if(!bar) return;
+    const lv = G.level;
+    const trait = (typeof LEVEL_TRAITS !== 'undefined') ? LEVEL_TRAITS[lv] : null;
+    const ltype = (trait && trait.type && typeof LEVEL_TYPES !== 'undefined' && LEVEL_TYPES[trait.type])
+                ? LEVEL_TYPES[trait.type] : null;
+    const mini  = (typeof MINI_BOSSES !== 'undefined') ? MINI_BOSSES[lv] : null;
+    const big   = (typeof BIG_BOSSES !== 'undefined' && typeof isBigBossLevel === 'function' && isBigBossLevel(lv))
+                ? BIG_BOSSES[lv] : null;
+    if(!trait && !mini && !big){ bar.classList.add('hidden'); return; }
+    bar.classList.remove('hidden');
+    let tip = '';
+    if(ltype) tip += '🏷️ 类型 · ' + ltype.name + '：' + ltype.tip + '\n';
+    if(trait) tip += '⚠️ 难点：' + trait.diff + '\n';
+    if(mini)  tip += '👹 小Boss ' + mini.name + '：' + mini.trait + '\n';
+    if(big)   tip += '👿 大Boss ' + big.name + '：' + big.trait;
+    let html = '';
+    if(trait) html += '<span class="ltb-theme">' + trait.icon + ' ' + trait.name + '</span>';
+    if(ltype) html += '<span class="lv-type">' + ltype.icon + ' ' + ltype.name + '</span>';
+    if(trait) html += '<span class="ltb-diff">⚠️ ' + trait.diff + '</span>';
+    if(mini)  html += '<span class="ltb-boss">👹 ' + mini.emoji + mini.name + '</span>';
+    if(big)   html += '<span class="ltb-boss big">👿 ' + big.emoji + big.name + '</span>';
+    bar.innerHTML = html;
+    bar.title = tip;   // DOM property 赋值无需转义，换行原样显示
   },
 
   /* ---------- 顶栏 ---------- */
@@ -127,12 +159,6 @@ const UI = {
   renderBattle(){
     this.buildGrid('enemyGrid', G.enemies);
     this.buildGrid('playerGrid', G.formation);
-    // 敌方阵营标题标注 Boss 战
-    const hasBig = G.enemies.some(u => u.alive && u.def.enemyType === 'bigBoss');
-    const hasMini = G.enemies.some(u => u.alive && u.def.enemyType === 'miniBoss');
-    const et = document.querySelector('#battlefield .faction.enemy .faction-tag');
-    if(et) et.textContent = hasBig ? '敌方阵营 · 👿 大 BOSS 战'
-      : hasMini ? '敌方阵营 · 👹 小 BOSS 战' : '敌方阵营';
     this.updatePositions();
     resizeCanvas();
     this.updateHeader();
@@ -177,7 +203,7 @@ const UI = {
         '<div class="u-bars">' +
           '<div class="bar hpbar"><i class="barmax"></i><i class="bardelay"></i><i class="barfill"></i><span class="bar-num"></span></div>' +
           '<div class="bar shbar hidden"><i class="barfill"></i></div>' +
-          act.map(sk => '<div class="bar mnbar" title="' + sk.name + '（独立蓝条 · 冷却 ' + skillCdMax(sk) + ' 秒）">' +
+          act.map(sk => '<div class="bar mnbar" title="' + sk.name + '（独立蓝条 · 冷却 ' + skillCdMax(sk, u) + ' 秒）">' +
             '<i class="barfill" style="background:' + (sk.color || '#3f7dff') + '"></i>' +
             '<i class="cdmask"></i>' +
             '<span class="bar-num"></span></div>').join('') +
@@ -266,7 +292,7 @@ const UI = {
           m.fill.style.width = clamp(cur / mx * 100, 0, 100) + '%';
           const cd = skillCdOf(u, m.sk);
           if(cd > 0){
-            const cdMax = Math.max(0.01, skillCdMax(m.sk));
+            const cdMax = Math.max(0.01, skillCdMax(m.sk, u));
             if(!m.onCd){ m.el.classList.add('on-cd'); m.onCd = true; }
             m.mask.style.width = clamp(cd / cdMax * 100, 0, 100) + '%';
           } else {
@@ -283,6 +309,11 @@ const UI = {
       if(u.statuses.silence > 0) st += '<span title="沉默">🤐 沉默</span>';
       if(u.statuses.disarm > 0)  st += '<span title="缴械">✋ 缴械</span>';
       if(u.dots.length)          st += '<span style="color:#7dff9a">☠ 中毒</span>';
+      // 中毒层数（剧毒术士·毒刺）：每 0.5 秒按层数掉血、每次减 1 层
+      if(u.poison && u.poison.n > 0)
+        st += '<span title="中毒：每 0.5 秒受到等同层数的伤害，随后减少 1 层毒素" style="color:#7dff9a">☠×' + u.poison.n + '</span>';
+      // 魔法免疫（瘟疫守卫·蛇型守卫）
+      if(u.magicImmune)          st += '<span title="对魔法伤害免疫">🧿 魔免</span>';
       // 怪物火车关键词：狂怒 / 护甲 / 尖刺
       if(u.rage > 0) st += '<span title="狂怒：每层 +' + RAGE_ATK + ' 攻击，每 ' +
         RAGE_DECAY_SEC + ' 秒衰减 1 层" style="color:#ff8a3c">🔥' + u.rage + '</span>';
@@ -540,7 +571,8 @@ const UI = {
       '🌵 <b>尖刺</b>——被击中时对攻击者反弹固定真实伤害。<br><br>' +
       '<b>关卡难度</b><br>每关开战前二选一：⚔️ 标准（正常强度）／' +
       '🔥 挑战（敌人属性 +30%、数量 +1；通关金币 +50%）。' +
-      '难度卡片上的 <b>💰 小图标</b>显示本关预计奖励，<b>鼠标悬停</b>可查看本关主题难点与 Boss 词条。<br><br>' +
+      '难度卡片上的 <b>💰 小图标</b>显示本关预计奖励，<b>鼠标悬停</b>可查看本关类型应对、主题难点与 Boss 词条。' +
+      '难度选择屏顶部的 <b>🏷️ 类型徽章</b>标明本关玩法类型（遭遇/铁壁/狂暴/切后/嗜血……<b>15 关各不相同</b>），悬停徽章可看该类型的通用应对提示。<br><br>' +
       '<b>战后流程</b><br>战斗胜利后依次经历：' +
       '<b>① 装备购买</b>——随机刷出 <b>6 件 1~5★ 装备</b>，<b>点选装备再点英雄</b>即购买' +
       '（也支持拖拽；点<b>【选好了】</b>可直接继续）；' +
@@ -618,7 +650,7 @@ const UI = {
                     (sk.type === 'active' ? '主动' : '被动') + '</span>';
       const kv = sk.type === 'active'
         ? '<div class="iskill-kv">💧 消耗 ' + sk.cost + ' 魔法 ｜ 当前 ' + fmtN(skillManaOf(u, sk)) + '/' + mxMana +
-          ' ｜ ⏱ 冷却 ' + skillCdMax(sk) + ' 秒' +
+          ' ｜ ⏱ 冷却 ' + skillCdMax(sk, u) + ' 秒' +
           (skillCdOf(u, sk) > 0 ? '（剩余 ' + skillCdOf(u, sk).toFixed(1) + ' 秒）' : '（就绪）') + '</div>'
         : '<div class="iskill-kv">被动技能，满足条件时自动生效</div>';
       return '<div class="iskill">' +

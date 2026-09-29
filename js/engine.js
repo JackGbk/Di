@@ -88,8 +88,18 @@ function setSkillMana(u, sk, v){
 /* ================= 技能冷却（CD） =================
  * 主动技能释放后进入独立冷却：冷却中蓝条照常充能、但无法再次释放。
  * 所有技能 CD 一律 ≤ SKILL_CD_MAX 秒（数据写超了也在这里截断）。 */
-function skillCdMax(sk){
-  return Math.min(sk.cd || 0, SKILL_CD_MAX);
+/* 冷却缩减（仙女龙·梦境环绕）：按技能 id 覆盖基础冷却时间 */
+function reducedCd(u, skId, base){
+  if(u){
+    for(const s of skillsOf(u)){
+      if(s.behavior === 'cdReduce' && s.cds && s.cds[skId] != null)
+        base = Math.min(base, s.cds[skId]);
+    }
+  }
+  return base;
+}
+function skillCdMax(sk, u){
+  return Math.min(reducedCd(u, sk.id, sk.cd || 0), SKILL_CD_MAX);
 }
 /* 技能剩余冷却（秒），0 表示就绪 */
 function skillCdOf(u, sk){
@@ -108,6 +118,12 @@ function getAllies(u){
 function getEnemies(u){
   const arr = u.faction === 'player' ? G.enemies : G.formation;
   return arr.filter(x => x.alive);
+}
+
+/* 敌方英雄判定：精英 / 小 Boss / 大 Boss（击杀成长、偷取生命等按“英雄”判定） */
+function isEnemyHero(u){
+  return !!u && u.faction === 'enemy' &&
+         (u.enemyType === 'elite' || u.enemyType === 'miniBoss' || u.enemyType === 'bigBoss');
 }
 
 /* 升星放大的核心属性键（百分比类属性不参与，避免溢出与失衡） */
@@ -145,6 +161,17 @@ function calcTotals(u){
       bonus.atk += base.atk * (sk.per || 0.40) * missing;
     }
   });
+  // 巨魔战将·巨魔天赋：每损失 5% 最大生命 → 攻速 +pct、生命恢复 +pct（按档数线性叠加，封顶 20 档）
+  sks.forEach(sk => {
+    if(sk.behavior === 'trollTalent'){
+      const missing = u.maxHp > 0 ? Math.max(0, 1 - u.hp / u.maxHp) : 0;
+      const steps = Math.min(20, Math.floor(missing / (sk.step || 0.05)));
+      if(steps > 0){
+        bonus.atkSpd  += (base.atkSpd  || 0) * (sk.pct || 0.08) * steps;
+        bonus.hpRegen += (base.hpRegen || 0) * (sk.pct || 0.08) * steps;
+      }
+    }
+  });
   // 影魔·灵魂收割：每击杀一名敌人 攻击 +atkPer、法强 +apPer（击杀数跨关累积，后期越杀越强）
   sks.forEach(sk => {
     if(sk.behavior === 'killGrow'){
@@ -163,6 +190,17 @@ function calcTotals(u){
       for(const e of foes) lostSum += e.maxHp > 0 ? Math.max(0, 1 - e.hp / e.maxHp) : 0;
       const ratio = foes.length ? Math.min(1, lostSum / foes.length) : 0;
       bonus.atk += base.atk * (sk.per || 0.60) * ratio;
+    }
+  });
+  // 神灵武士·狂战士之血：每损失 step% 生命 → 攻击 +atkPer、攻速 +spdPer（按档数叠加）
+  sks.forEach(sk => {
+    if(sk.behavior === 'berserkBlood'){
+      const missing = u.maxHp > 0 ? Math.max(0, 1 - u.hp / u.maxHp) : 0;
+      const steps = Math.floor(missing / (sk.step || 0.1));
+      if(steps > 0){
+        bonus.atk    += (base.atk    || 0) * (sk.atkPer || 0.05) * steps;
+        bonus.atkSpd += (base.atkSpd || 0) * (sk.spdPer || 0.05) * steps;
+      }
     }
   });
   // 肉鸽强化：强化槽改造（数值类）+ 神器被动 + 祝福（仅我方生效）
@@ -193,7 +231,10 @@ function calcTotals(u){
   }
   // 临时增益
   (u.buffs || []).forEach(b => {
-    if(b.mult && ZERO_KEYS.indexOf(b.stat) >= 0) bonus[b.stat] += base[b.stat] * b.mult;
+    if(b.frenzy){   // 野性狂暴：每层 +per 攻速（层数随普攻累积，buff 到期即清零）
+      bonus.atkSpd += (base.atkSpd || 0) * (b.per || 0.08) * (b.stacks || 0);
+    }
+    else if(b.mult && ZERO_KEYS.indexOf(b.stat) >= 0) bonus[b.stat] += base[b.stat] * b.mult;
     else if(b.add){ const o = {}; o[b.stat] = b.add; addStats(bonus, o); }
   });
 
@@ -297,7 +338,23 @@ function doSummon(caster, s){
       enemyType: 'minion',
       pos: caster.posType || 'mid',
       skills: (tpl.skills || []).slice(),
-      base: {
+      base: tpl.flat ? {
+        // 固定属性召唤物（蛇型守卫）：50 生命 / 5 攻击，不随关卡成长
+        hp:        tpl.flat.hp,
+        maxMana:   0,
+        atk:       tpl.flat.atk,
+        atkSpd:    tpl.flat.atkSpd || 1,
+        ap:        0,
+        armor:     tpl.flat.armor || 0,
+        dodge:     0,
+        crit:      0,
+        critMult:  150,
+        hpRegen:   0,
+        manaRegen: 0,
+        lifesteal: 0,
+        mlifesteal:0,
+        spikes:    0,
+      } : {
         hp:        Math.round(ENEMY_BASE.hp * hpS * tpl.mult.hp),
         maxMana:   ENEMY_BASE.maxMana,
         atk:       Math.round(ENEMY_BASE.atk * atkS * tpl.mult.atk),
@@ -318,9 +375,13 @@ function doSummon(caster, s){
     const u = createUnit(def, caster.faction, def.pos);
     u.summonTag = s.template;
     u.isSummon = true;
+    if(tpl.magicImmune) u.magicImmune = true;   // 对魔法免疫（蛇型守卫）
+    const dur = s.dur || tpl.dur;
+    if(dur) u.summonDur = dur;                  // 持续时间到后自然消散
     placeUnit(u);
     team.push(u);
     UI.float(caster, '召唤 ' + tpl.name, 'skill');
+    castLinkFx(caster, u);              // 召唤指向线：看清是谁召的、召到哪
   }
   if(typeof UI !== 'undefined' && UI.renderBattle) UI.renderBattle();
 }
@@ -522,6 +583,13 @@ function startBattle(){
     u.rage = u.baseRage || 0; // 狂怒层数重置（Boss 可有开局层数）
     u.hpDelayed = u.hp;
     u.dropActive = false;
+    // 六英雄新机制：每场战斗重置的状态
+    u._rebirthUsed = false;               // 骷髅王·重生：每场一次
+    u._duel = null;                       // 军团指挥官·决斗锁定 {tid, remain}
+    u._ampPhys = 0; u._ampPhysRemain = 0; // 鱼人守卫·伤害加深：易伤幅度 / 剩余时间
+    u._regenWin = null;                   // 神灵武士·活血术：恢复窗口 {remain, pct}
+    u._berserkT = 0;                      // 神灵武士·狂热计时
+    u._ksAcc = 0; u._ksT = 0;             // 潮汐猎人·海妖外壳：累计受击 / 定时清负面
     // 强化槽·狂怒之刃：战斗开始获得狂怒层数
     for(const id of (u.upgrades || [])){
       const up = upgradeById(typeof id === 'string' ? id : id.id);
@@ -597,6 +665,17 @@ function update(dt){
     u._frame = -1;
     if(!u.alive) continue;
 
+    // 召唤物持续时间（瘟疫守卫·蛇型守卫 10 秒）：到时自然消散，不结算击杀奖励
+    if(u.summonDur != null){
+      u.summonDur -= dt;
+      if(u.summonDur <= 0){
+        u.alive = false; u.hp = 0; u.shield = 0;
+        u.dots = []; u.buffs = []; u.poison = null; u.novas = [];
+        UI.removeUnit(u);
+        continue;
+      }
+    }
+
     // 技能冷却：每条蓝条对应的技能各自倒计时，归零即可再次释放
     if(u.cd){
       for(const id in u.cd){
@@ -614,10 +693,16 @@ function update(dt){
     st.disarm  = Math.max(0, st.disarm - dt);
     st.invuln  = Math.max(0, (st.invuln || 0) - dt);                // 无敌斩：连斩期间免疫伤害
     if(u.btRemain > 0) u.btRemain = Math.max(0, u.btRemain - dt);   // 回光返照窗口倒计时
+    if(u._phaseCd > 0) u._phaseCd = Math.max(0, u._phaseCd - dt);   // 仙女龙·相位转移内置冷却
 
     // 属性成长同步 + 恢复
     refreshMaxHp(u);
-    if(u.hp < u.maxHp) u.hp = Math.min(u.maxHp, u.hp + stat(u, 'hpRegen') * dt);
+    if(u.hp < u.maxHp){
+      let hpRegen = stat(u, 'hpRegen');
+      // 神灵武士·活血术：窗口期间按生命缺失比例额外恢复（越残血回得越快）
+      if(u._regenWin) hpRegen += u.maxHp * u._regenWin.pct * Math.max(0, 1 - u.hp / u.maxHp);
+      u.hp = Math.min(u.maxHp, u.hp + hpRegen * dt);
+    }
     // 每条独立蓝条各自回复
     const acts = getActiveSkills(u);
     if(acts.length){
@@ -627,8 +712,13 @@ function update(dt){
     }
 
     // 持续伤害（中毒 / 灼烧）
-    for(let i = u.dots.length - 1; i >= 0; i--){
-      const d = u.dots[i];
+    // 快照数组引用遍历：结算伤害可能触发 killUnit/驱散等把 u.dots 整体重置为 []，
+    // 中途数组被换掉时立即停止，避免按下标读到 undefined（reading 'remain'）抛错卡死主循环
+    const dotList = u.dots;
+    for(let i = dotList.length - 1; i >= 0; i--){
+      if(u.dots !== dotList) break;
+      const d = dotList[i];
+      if(!d) continue;
       d.remain -= dt;
       d.acc += dt;
       while(d.acc >= 1){
@@ -638,7 +728,45 @@ function update(dt){
           if(lost > 0) UI.float(u, '-' + fmtN(lost), 'dot');
         }
       }
-      if(d.remain <= 0) u.dots.splice(i, 1);
+      if(d.remain <= 0) dotList.splice(i, 1);
+    }
+
+    // 中毒（剧毒术士·毒刺）：每 0.5 秒受到等同层数的伤害，随后减少 1 层毒素
+    if(u.poison && u.poison.n > 0){
+      u.poison.acc = (u.poison.acc || 0) + dt;
+      while(u.poison.acc >= 0.5){
+        u.poison.acc -= 0.5;
+        if(!u.alive || u.poison.n <= 0) break;
+        const pStacks = u.poison.n;
+        const lost = dealDamage(u, pStacks, { source:u.poison.source, type:'true' }).hpLost;
+        if(lost > 0) UI.float(u, '☠-' + fmtN(lost), 'dot');
+        u.poison.n = pStacks - 1;
+        if(u.poison.n <= 0){ u.poison.n = 0; u.poison.acc = 0; }
+      }
+    }
+
+    // 剧毒新星（剧毒术士）：生命移除——无视护甲/护盾/减伤，每 0.5 秒结算，
+    // 共计减少 最大生命 35% + 50 点，目标生命值最多降低至 1
+    if(u.novas && u.novas.length){
+      for(let i = u.novas.length - 1; i >= 0; i--){
+        const nv = u.novas[i];
+        nv.remain -= dt;
+        nv.acc += dt;
+        while(nv.acc >= 0.5){
+          nv.acc -= 0.5;
+          if(!u.alive || nv.remain <= 0) break;
+          if(u.hp <= 1 || (u.statuses.invuln || 0) > 0) continue;
+          const before = u.hp;
+          u.hp = Math.max(1, u.hp - nv.per);
+          const lost = before - u.hp;
+          if(lost > 0){
+            UI.float(u, '-' + fmtN(lost), 'dot');
+            UI.hitFlash(u);
+            if(nv.source && nv.source.dmgDealt != null) nv.source.dmgDealt += lost;
+          }
+        }
+        if(nv.remain <= 0) u.novas.splice(i, 1);
+      }
     }
 
     // 临时增益到期（攻速 / 攻击等 buff）
@@ -654,6 +782,36 @@ function update(dt){
     if(u._fury){
       u._fury.remain -= dt;
       if(u._fury.remain <= 0) u._fury = null;
+    }
+
+    // 军团指挥官·决斗：倒计时结束仍未分出胜负 → 和平收场（双方恢复自由）
+    if(u._duel){
+      u._duel.remain -= dt;
+      if(u._duel.remain <= 0) u._duel = null;
+    }
+    // 鱼人守卫·伤害加深：易伤窗口到期即清零
+    if(u._ampPhysRemain > 0){
+      u._ampPhysRemain -= dt;
+      if(u._ampPhysRemain <= 0){ u._ampPhys = 0; u._ampPhysRemain = 0; }
+    }
+    // 神灵武士·活血术：恢复窗口到期
+    if(u._regenWin){
+      u._regenWin.remain -= dt;
+      if(u._regenWin.remain <= 0) u._regenWin = null;
+    }
+    // 潮汐猎人·海妖外壳（定时清负面）/ 神灵武士·狂战士之血（周期狂热）
+    for(const sk of skillsOf(u)){
+      if(sk.behavior === 'krakenShell'){
+        u._ksT = (u._ksT || 0) + dt;
+        if(u._ksT >= (sk.interval || 6)){ u._ksT = 0; krakenCleanse(u, sk); }
+      }
+      if(sk.behavior === 'berserkBlood' && sk.fury){
+        u._berserkT = (u._berserkT || 0) + dt;
+        if(u._berserkT >= sk.fury.every){
+          u._berserkT = 0;
+          applyBuff(u, { stat:'lifesteal', add:sk.fury.lifesteal, dur:sk.fury.dur, name:'狂热' });
+        }
+      }
     }
   }
 
@@ -774,6 +932,30 @@ function perSecondTick(){
           if(healUnit(a, h) > 0) UI.float(a, '+' + fmtN(h), 'heal');
         }
       }
+      // 屠夫·腐烂：每秒对最近的敌方单位造成魔法伤害，自身反噬其中一半
+      if(sk.behavior === 'rot'){
+        const foes = getEnemies(u);
+        if(foes.length){
+          let near = foes[0];
+          if(u.px != null && near.px != null){
+            let bd = Math.hypot(near.px - u.px, (near.py || 0) - (u.py || 0));
+            for(const f of foes){
+              if(f.px == null) continue;
+              const d = Math.hypot(f.px - u.px, (f.py || 0) - (u.py || 0));
+              if(d < bd){ bd = d; near = f; }
+            }
+          }
+          const dps = stat(u, sk.stat) * sk.mult;
+          if(near.magicImmune) UI.float(near, '魔免', 'miss');
+          else{
+            const lost = dealDamage(near, dps, { source:u, type:'magic' }).hpLost;
+            if(lost > 0) UI.float(near, '腐烂 -' + fmtN(lost), 'dot');
+          }
+          const selfLost = dealDamage(u, dps * (sk.selfPct || 0.5),
+                                      { source:u, type:'true', noThorns:true }).hpLost;
+          if(selfLost > 0) UI.float(u, '腐烂 -' + fmtN(selfLost), 'dot');
+        }
+      }
     }
   }
 }
@@ -805,7 +987,13 @@ function doAttack(u){
   }
   const foes = getEnemies(u);
   if(!foes.length) return;
-  const target = pickRowTarget(foes);
+  // 军团指挥官·决斗：决斗期间只能攻击锁定的对手
+  let target = null;
+  if(u._duel){
+    target = foes.find(f => f.id === u._duel.tid) || null;
+    if(!target) u._duel = null;
+  }
+  if(!target) target = pickRowTarget(foes);
 
   const payload = { kind:'attack', source:u, canCrit:true, canDodge:true,
                     effect:{ damage:{ type:'physical', stat:'atk', mult:1 } } };
@@ -823,9 +1011,22 @@ function doAttack(u){
       if(!payload.onHitDot || dps > payload.onHitDot.dps)
         payload.onHitDot = { name:sk.dot.name, dps, dur:sk.dot.dur, color:sk.dot.color };
     }
+    // 毒刺（剧毒术士）：普攻附加中毒层数
+    if(sk.behavior === 'attackPoison')
+      payload.poison = { n: sk.stacks || 1, max: sk.max || 6 };
     if(sk.behavior === 'attackStun'){
       if(!payload.chill || sk.chance > payload.chill.chance)
         payload.chill = { chance:sk.chance, dur:sk.dur, name:sk.name };   // 浮字用技能本名（如 碎骨一击）
+    }
+    // 巨魔战将·狂战士之怒 / 狙击手·爆头：攻击时概率打出额外伤害并晕眩（晕眩在命中后结算）
+    if((sk.behavior === 'berserkFury' || sk.behavior === 'headshot') && chance(sk.chance)){
+      payload.effect.damage.mult = (payload.effect.damage.mult || 1) + (sk.pct || 0.5);
+      payload.chill = { chance:1, dur:sk.dur || 2, name:sk.name };
+    }
+    // 狙击手·瞄准：攻击时概率发射榴弹，命中后在目标处爆炸，造成伤害并降低护甲
+    if(sk.behavior === 'aimedShell' && chance(sk.chance)){
+      payload.shell = { mult:sk.mult || 0.8, shred:sk.shred || 3, dur:sk.dur || 4,
+                        radius:sk.radius || 90, name:sk.name };
     }
     if(sk.behavior === 'cleave'){
       if(!payload.splash || sk.mult > payload.splash.mult)
@@ -839,6 +1040,10 @@ function doAttack(u){
     }
     // 熊战士·怒意狂击：命中撕开伤口，按层数追加伤害（每层 +per，最多 max 层，持续 dur 秒）
     if(sk.behavior === 'furySwipes') payload.fury = { per:sk.per, max:sk.max, dur:sk.dur };
+    // 神灵武士·沸血之矛：普攻附加魔法伤害（自身付出生命代价）
+    if(sk.behavior === 'burningSpear') payload.burnSpear = { costPct:sk.costPct, mult:sk.mult };
+    // 骷髅王·不死打击：概率追加按自身最大生命计算的物理重击
+    if(sk.behavior === 'undyingStrike' && chance(sk.chance)) payload.undying = sk.maxHpPct;
   }
 
   // 熊战士·激怒：增益期间普攻附加 自身最大生命×pct 的物理伤害（多层取最强）
@@ -851,6 +1056,19 @@ function doAttack(u){
   u._firstAtk = false;
   // 碾压：普攻击杀目标后，对同排另一名敌人追加伤害
   if(hasUpgrade(u, 'trample')) payload.trample = true;
+
+  // 巨魔战将·野性狂暴：每次攻击 +1 层攻速增益；改变攻击目标时层数损失一半
+  for(const bf of u.buffs){
+    if(!bf.frenzy) continue;
+    if(u._frenzyTid !== target.id){
+      if(bf.stacks > 0){
+        bf.stacks = Math.ceil(bf.stacks / 2);
+        UI.float(u, '野性狂暴·换目标减半', 'status');
+      }
+      u._frenzyTid = target.id;
+    }
+    bf.stacks = (bf.stacks || 0) + 1;
+  }
 
   spawnBullet(u, target, payload, { skill:false });
   gainMana(u, MANA_ON_ATTACK);
@@ -866,6 +1084,9 @@ function doAttack(u){
   let extraHits = u.multistrike || 0;
   if(hasUpgrade(u, 'multistrike')) extraHits += 1;
   if(u.faction === 'player' && hasArtifact('barb') && isTopStarHero(u)) extraHits += 1;
+  // 鱼人守卫·多重攻击：概率快速挥动武器追加多次攻击（攻击特效可多次触发）
+  for(const sk of skillsOf(u))
+    if(sk.behavior === 'multiHit' && chance(sk.chance)) extraHits += sk.hits;
   for(let i = 0; i < extraHits; i++){
     spawnBullet(u, target, clonePayload(payload, 0.6), { skill:false });
   }
@@ -922,6 +1143,39 @@ function resolveTargets(u, mode){
       while(copy.length && out.length < 3) out.push(copy.splice(Math.floor(Math.random()*copy.length), 1)[0]);
       return out;
     }
+    // 狙击手·暗杀：优先从敌方最靠后的一排（后排）中随机选一个单位
+    case 'backRow': {
+      const rows = { back:[], mid:[], front:[] };
+      for(const f of foes){
+        const k = (f.posType === 'front' || f.posType === 'back') ? f.posType : 'mid';
+        rows[k].push(f);
+      }
+      for(const k of ['back','mid','front']) if(rows[k].length) return [pickOne(rows[k])];
+      return [];
+    }
+    // 鱼人守卫·鱼人碎击：随机 2 个敌方单位
+    case 'enemyRandom2': {
+      const copy = foes.slice();
+      const out = [];
+      while(copy.length && out.length < 2) out.push(copy.splice(Math.floor(Math.random()*copy.length), 1)[0]);
+      return out;
+    }
+    // 潮汐猎人·巨浪：敌方前排单个目标（按前→中→后回退，再退回任意敌人）
+    case 'enemyFrontRow': {
+      const rows = { front:[], mid:[], back:[] };
+      for(const f of foes){
+        const k = (f.posType === 'front' || f.posType === 'back') ? f.posType : 'mid';
+        rows[k].push(f);
+      }
+      for(const k of ['front','mid','back']) if(rows[k].length) return [pickOne(rows[k])];
+      return foes.length ? [pickOne(foes)] : [];
+    }
+    // 军团指挥官·决斗：优先向敌方英雄（精英/首领）发起，无英雄则退回任意敌人
+    case 'enemyHero': {
+      const heroes = foes.filter(isEnemyHero);
+      if(heroes.length) return [pickOne(heroes)];
+      return foes.length ? [pickOne(foes)] : [];
+    }
     case 'self': return [u];
   }
   return [];
@@ -943,7 +1197,7 @@ function buildPayload(u, sk){
 /* 释放技能：原地视觉效果 + 抛物线技能子弹（左右随机方向），到达后结算 */
 function castSkill(u, sk){
   setSkillMana(u, sk, Math.max(0, skillManaOf(u, sk) - sk.cost));   // 只扣这条蓝条
-  setSkillCd(u, sk, skillCdMax(sk));               // 进入冷却（≤ SKILL_CD_MAX 秒）
+  setSkillCd(u, sk, skillCdMax(sk, u));            // 进入冷却（≤ SKILL_CD_MAX 秒，受梦境环绕缩减）
   UI.float(u, (sk.icon ? sk.icon + ' ' : '') + sk.name, 'skill');
   if(UI.castFx) UI.castFx(u, sk);   // 施法视觉：卡片技能色闪光 + 扩散光环 + 技能图标弹出 + 蓝条闪烁
   // 神器·铁道锻锤：每次释放技能，施法者获得 2 点护甲（本场战斗）
@@ -977,10 +1231,38 @@ function castSkill(u, sk){
 
   const targets = resolveTargets(u, sk.targeting);
   if(!targets.length) return;
+  // 军团指挥官·决斗：锁定双方强制互攻（双方沉默、免晕、无视魔法免疫）
+  if(sk.duel){
+    const t = targets[0];
+    if(!t || !t.alive) return;
+    const dur = sk.duel.dur || 5;
+    u._duel = { tid:t.id, remain:dur };
+    t._duel = { tid:u.id, remain:dur };
+    u.statuses.silence = Math.max(u.statuses.silence, dur);
+    t.statuses.silence = Math.max(t.statuses.silence, dur);
+    UI.float(u, '⚔️ 决斗!', 'skill');
+    UI.float(t, '⚔️ 决斗!', 'status');
+    addEffect({ type:'cast', x:u.px, y:u.py, t:0, life:0.6, color:'#ff5c5c', fx:'ring' });
+    addEffect({ type:'cast', x:t.px, y:t.py, t:0, life:0.6, color:'#ff5c5c', fx:'ring' });
+    castLinkFx(u, t, '#ff5c5c');        // 决斗指向线：谁向谁宣战一目了然
+    return;
+  }
   if(sk.targeting === 'self'){            // 自身技能：原地生效
+    if(sk.effect && sk.effect.summon){    // 召唤类（瘟疫守卫 / 熊灵伙伴）：直接生成召唤物
+      doSummon(u, sk.effect.summon);
+      return;
+    }
+    // 德鲁伊·协同：自己与场上的熊灵一同进入协同状态（攻速 +50%，4 秒）
+    if(sk.bearPack){
+      applyBuff(u, sk.bearPack);
+      for(const a of getAllies(u)) if(a !== u && a.summonTag === 'bear') applyBuff(a, sk.bearPack);
+      return;
+    }
     applyHit(u, buildPayload(u, sk));
     return;
   }
+  // 幻像法球（仙女龙）：直线飞行的魔法球，沿途 25 范围内敌人各命中一次
+  if(sk.fx === 'orb'){ castOrb(u, sk, targets); return; }
   // 超声波（痛苦女王大招）：一道冲击波扫向敌阵，波面扫到谁谁掉血
   if(sk.fx === 'wave'){ castWaveFx(u, targets, sk); return; }
   if(sk.fx === 'lightning'){
@@ -988,7 +1270,10 @@ function castSkill(u, sk){
     castLightningFx(u, targets, sk);
     return;
   }
+  // 单体指向技能：画“施法者 → 目标”指示线（群体/波/闪电/法球自带可视化，不画避免杂乱）
+  const groupCast = sk.targeting === 'allEnemies' || sk.targeting === 'allAllies';
   for(const t of targets){
+    if(!groupCast) castLinkFx(u, t, sk.color);
     spawnBullet(u, t, buildPayload(u, sk), { skill:true, color:sk.color, icon:sk.icon });
   }
 }
@@ -1027,7 +1312,7 @@ function updateBullets(dt){
     b.spin += dt * 12;
     if(b.p >= 1){
       bullets.splice(i, 1);
-      applyHit(b.to, b.payload);
+      if(!b.pass) applyHit(b.to, b.payload);   // 直线法球沿途已结算，抵达时不重复命中
       continue;
     }
     if(b.ctrl){
@@ -1042,6 +1327,16 @@ function updateBullets(dt){
     // 普攻光痕拖尾 12 段（保证“划过留痕”可见），技能子弹 12 段（保留图标识别度）
     const maxTrail = 12;
     if(b.trail.length > maxTrail) b.trail.shift();
+    // 直线法球（幻像法球）：飞行过程中对附近 hitR 范围内的敌人各命中一次
+    if(b.hitR){
+      for(const e of getEnemies(b.from)){
+        if(!e.alive || b.hitIds[e.id]) continue;
+        if(Math.hypot(e.px - b.x, e.py - b.y) <= b.hitR){
+          b.hitIds[e.id] = 1;
+          applyHit(e, b.payload);
+        }
+      }
+    }
   }
 }
 
@@ -1068,7 +1363,8 @@ function applyHit(target, payload){
       type = e.damage.type;
       // 奈克斯式：按目标最大生命百分比扣血（不吃攻击/法强加成，专克高血量目标）
       if(e.damage.maxHpPct != null) raw = target.maxHp * e.damage.maxHpPct;
-      else raw = (src ? stat(src, e.damage.stat) : 0) * e.damage.mult;
+      // 暗杀等技能的固定加成伤害（如 攻击力×50% + 100）
+      else raw = (src ? stat(src, e.damage.stat) : 0) * e.damage.mult + (e.damage.flat || 0);
       if(payload.canCrit && src && chance(stat(src, 'crit') / 100)){
         raw *= stat(src, 'critMult') / 100;
         crit = true;
@@ -1080,17 +1376,34 @@ function applyHit(target, payload){
     }
     if(payload.forceCrit) crit = true;   // 剑舞：第 N 刀强制暴击
     if(!dodged){
-      // 护甲：平坦减免（怪物火车式），单次至少保留 1 点
-      if(type === 'physical') raw = armorHit(src, target, raw);
-      // 猎人印记：对精英与首领额外 +25% 伤害
-      if(src && src.faction === 'player' && hasArtifact('hunterMark') &&
-         (target.enemyType === 'elite' || target.enemyType === 'miniBoss' || target.enemyType === 'bigBoss'))
-        raw *= 1.25;
-      raw *= (1 - takenReduce(target));
-      const r = dealDamage(target, raw, { source:src, type, crit });
-      dealt = r.hpLost;
-      if(dealt > 0) UI.float(target, '-' + fmtN(dealt) + (crit ? ' 暴击' : ''), crit ? 'crit' : 'dmg');
-      else if(r.absorbed > 0) UI.float(target, '盾 -' + fmtN(r.absorbed), 'shield');
+      if(type === 'magic' && target.magicImmune){
+        // 魔法免疫（蛇型守卫）：完全抵挡魔法伤害
+        UI.float(target, '魔免', 'miss');
+      } else {
+        // 护甲：平坦减免（怪物火车式），单次至少保留 1 点
+        if(type === 'physical') raw = armorHit(src, target, raw);
+        // 猎人印记：对精英与首领额外 +25% 伤害
+        if(src && src.faction === 'player' && hasArtifact('hunterMark') &&
+           (target.enemyType === 'elite' || target.enemyType === 'miniBoss' || target.enemyType === 'bigBoss'))
+          raw *= 1.25;
+        // 神灵武士·狂战士之血：被动魔法抗性（生命越低抗性越高）
+        if(type === 'magic'){
+          for(const s2 of skillsOf(target)){
+            if(s2.behavior === 'berserkBlood' && s2.mr){
+              const miss = target.maxHp > 0 ? Math.max(0, 1 - target.hp / target.maxHp) : 0;
+              raw *= 1 - clamp(s2.mr.base + s2.mr.missing * miss, 0, s2.mr.max);
+            }
+          }
+        }
+        // 鱼人守卫·伤害加深：易伤期间受到的物理伤害提高
+        if(type === 'physical' && target._ampPhys > 0 && target._ampPhysRemain > 0)
+          raw *= (1 + target._ampPhys);
+        raw *= (1 - takenReduce(target));
+        const r = dealDamage(target, raw, { source:src, type, crit, kind:payload.kind });
+        dealt = r.hpLost;
+        if(dealt > 0) UI.float(target, '-' + fmtN(dealt) + (crit ? ' 暴击' : ''), crit ? 'crit' : 'dmg');
+        else if(r.absorbed > 0) UI.float(target, '盾 -' + fmtN(r.absorbed), 'shield');
+      }
     }
   }
 
@@ -1138,13 +1451,80 @@ function applyHit(target, payload){
     }
   }
 
-  // 吸血
+  // 狙击手·瞄准：榴弹在目标处爆炸，波及范围内的敌人，造成物理伤害并降低护甲
+  if(payload.shell && src){
+    const sh = payload.shell;
+    for(const o of getEnemies(src)){
+      if(!o.alive) continue;
+      // 以目标位置为中心的范围判定（无坐标数据时退化为全体溅射）
+      if(o !== target && target.px != null && o.px != null){
+        const dx = o.px - target.px, dy = (o.py || 0) - (target.py || 0);
+        if(dx * dx + dy * dy > sh.radius * sh.radius) continue;
+      }
+      let sd = armorHit(src, o, stat(src, 'atk') * sh.mult);
+      sd *= (1 - takenReduce(o));
+      const rr = dealDamage(o, sd, { source:src, type:'physical' });
+      if(rr.hpLost > 0) UI.float(o, '榴弹 -' + fmtN(rr.hpLost), 'dmg');
+      applyBuff(o, { stat:'armor', add:-sh.shred, dur:sh.dur, name:(sh.name || '瞄准') + '·破甲' });
+    }
+  }
+
+  // 吸血（可被“勇气之霎”等以 lifestealPct 覆盖固定吸血比例）
   if(!dodged && dealt > 0 && src && src.alive){
-    const ls = type === 'physical' ? stat(src, 'lifesteal')
+    const ls = payload.lifestealPct != null ? payload.lifestealPct
+             : type === 'physical' ? stat(src, 'lifesteal')
              : type === 'magic'    ? stat(src, 'mlifesteal') : 0;
     if(ls > 0){
       const h = dealt * ls / 100;
       if(healUnit(src, h) > 0) UI.float(src, '+' + fmtN(h), 'heal');
+    }
+  }
+
+  // 骷髅王·吸血光环：友军普攻命中 → 攻击者按伤害回血（光环持有者自身翻倍）
+  if(payload.kind === 'attack' && dealt > 0 && src && src.alive){
+    let vampPct = 0;
+    for(const a of getAllies(src)){
+      for(const sk2 of skillsOf(a)){
+        if(sk2.behavior === 'vampAura')
+          vampPct = Math.max(vampPct, (sk2.healPct || 0.10) * (a === src ? 2 : 1));
+      }
+    }
+    if(vampPct > 0){
+      const h = dealt * vampPct;
+      if(healUnit(src, h) > 0) UI.float(src, '+' + fmtN(h), 'heal');
+    }
+  }
+
+  // 骷髅王·不死打击：普攻伤害的一部分转化为生命上限（本场战斗）
+  if(payload.kind === 'attack' && !dodged && dealt > 0 && src && src.alive){
+    for(const sk2 of skillsOf(src)){
+      if(sk2.behavior === 'undyingStrike' && sk2.convert){
+        const grow = addBattleMaxHp(src, dealt * sk2.convert, '不死打击');
+        if(grow > 0) UI.float(src, '+' + grow + ' 生命上限', 'good');
+      }
+    }
+  }
+
+  // 骷髅王·不死打击：概率追加自身最大生命×pct 的物理重击
+  if(payload.undying && src && target.alive && !dodged){
+    let ud = armorHit(src, target, src.maxHp * payload.undying);
+    ud *= (1 - takenReduce(target));
+    const rr = dealDamage(target, ud, { source:src, type:'physical', kind:payload.kind });
+    if(rr.hpLost > 0) UI.float(target, '不死打击 -' + fmtN(rr.hpLost), 'dmg');
+  }
+
+  // 神灵武士·沸血之矛：燃烧自身生命，攻击附加魔法伤害
+  if(payload.burnSpear && src && src.alive){
+    const cr = dealDamage(src, src.maxHp * payload.burnSpear.costPct,
+                          { source:src, type:'true', noThorns:true });
+    if(cr.hpLost > 0) UI.float(src, '-' + fmtN(cr.hpLost), 'dot');
+    if(!dodged && target.alive){
+      if(target.magicImmune) UI.float(target, '魔免', 'miss');
+      else{
+        const rr = dealDamage(target, stat(src, 'atk') * payload.burnSpear.mult,
+                              { source:src, type:'magic' });
+        if(rr.hpLost > 0) UI.float(target, '沸血之矛 -' + fmtN(rr.hpLost), 'dmg');
+      }
     }
   }
 
@@ -1189,20 +1569,62 @@ function applyHit(target, payload){
     addEffect({ type:'cast', x:target.px, y:target.py, t:0, life:0.7,
                 color:'#6bffc8', fx:'ring' });
   }
-  if(e.stun){    applyStatus(target, 'stun', e.stun);    UI.float(target, '眩晕', 'status'); }
+  if(e.stun){
+    if(stunImmune(target)) UI.float(target, '免疫晕眩', 'good');   // 巨魔天赋：低血免晕
+    else { applyStatus(target, 'stun', e.stun); UI.float(target, '眩晕', 'status'); }
+  }
   if(e.silence){ applyStatus(target, 'silence', e.silence); UI.float(target, '沉默', 'status'); }
   if(e.disarm){  applyStatus(target, 'disarm', e.disarm);  UI.float(target, '缴械', 'status'); }
   if(e.dot) applyDot(target, { name:e.dot.name,
     dps:(src ? stat(src, e.dot.stat) : 0) * e.dot.mult, dur:e.dot.dur, color:e.dot.color }, src);
   if(payload.bonusDot) applyDot(target, payload.bonusDot, src);
   if(payload.onHitDot) applyDot(target, payload.onHitDot, src);
+  // 毒刺（剧毒术士）：命中附加中毒层数
+  if(payload.poison) applyPoison(target, payload.poison.n, payload.poison.max, src);
   if(payload.chill && chance(payload.chill.chance)){
-    applyStatus(target, 'stun', payload.chill.dur);
-    UI.float(target, payload.chill.name || '冰冻', 'status');
+    if(stunImmune(target)) UI.float(target, '免疫晕眩', 'good');   // 巨魔天赋：低血免晕
+    else {
+      applyStatus(target, 'stun', payload.chill.dur);
+      UI.float(target, payload.chill.name || '冰冻', 'status');
+    }
   }
   // 临时增益（正/负向均可：如冰缓减攻速、龙威减攻、龙息破甲）
   if(e.buff) applyBuff(target, e.buff);
   if(e.buffs) for(const b of e.buffs) applyBuff(target, b);
+  // 鱼人守卫·伤害加深：注册易伤窗口（持续提高受到的物理伤害，可叠加至上限）
+  if(e.ampPhys && target.alive){
+    target._ampPhys = Math.min(e.ampPhys.max, (target._ampPhys || 0) + e.ampPhys.pct);
+    target._ampPhysRemain = e.ampPhys.dur;
+    UI.float(target, '伤害加深!', 'status');
+  }
+  // 屠夫·肉钩：把钩中的目标拉到其阵营的最前排
+  if(e.pull && target.alive) pullToFront(target);
+  // 军团指挥官·破釜沉舟：舍弃一半护甲，每点舍弃的护甲换 atkPer 攻击力
+  if(e.sacrificeArmor && target.alive){
+    const give = Math.max(0, stat(target, 'armor') * e.sacrificeArmor.pct);
+    if(give > 0){
+      applyBuff(target, { stat:'armor', add:-give, dur:e.sacrificeArmor.dur, name:'破釜沉舟·舍甲' });
+      applyBuff(target, { stat:'atk', add:give * e.sacrificeArmor.atkPer,
+                          dur:e.sacrificeArmor.dur, name:'破釜沉舟·加攻' });
+    }
+  }
+  // 神灵武士·活血术：开启按缺失生命提速的恢复窗口
+  if(e.regenWindow && target.alive){
+    target._regenWin = { remain:e.regenWindow.dur, pct:e.regenWindow.pct };
+    UI.float(target, '活血术', 'good');
+  }
+  // 剧毒新星（剧毒术士）：注册生命移除型持续伤害（每 0.5 秒结算，生命最低降至 1）
+  if(e.nova && target.alive){
+    const total = target.maxHp * e.nova.pct + e.nova.flat;
+    const per = total / (e.nova.dur / 0.5);
+    if(!target.novas) target.novas = [];
+    const cur = target.novas.find(x => x.remain > 0);
+    if(cur){ cur.per = Math.max(cur.per, per); cur.remain = Math.max(cur.remain, e.nova.dur); }
+    else target.novas.push({ remain:e.nova.dur, acc:0, per, source:src });
+    UI.float(target, '☣ 剧毒新星', 'dot');
+  }
+  // 召唤（瘟疫守卫等）：在施法者阵营生成召唤物
+  if(e.summon) doSummon(src || target, e.summon);
   // 处决：目标生命低于阈值直接斩杀（斧王·斩杀）
   if(e.execute && target.alive && target.hp <= target.maxHp * e.execute){
     UI.float(target, '处决!', 'crit');
@@ -1225,8 +1647,29 @@ function dealDamage(target, amount, info){
     UI.float(target, '无敌', 'miss');
     return { hpLost:0, absorbed:0 };
   }
+  // 仙女龙·相位转移：受到伤害时触发，短暂改变所处维度免疫一切伤害（内置冷却，梦境环绕可缩减）
+  if(target.statuses && (target.statuses.invuln || 0) <= 0 && (target._phaseCd || 0) <= 0){
+    for(const ps of skillsOf(target)){
+      if(ps.behavior === 'phaseShift'){
+        target._phaseCd = reducedCd(target, ps.id, ps.cd || 3);
+        target.statuses.invuln = ps.dur || 0.5;
+        UI.float(target, '相位转移', 'good');
+        // 持续时间内战场上有视觉效果（光环 + 迸发，覆盖 0.5 秒维度切换）
+        addEffect({ type:'cast', x:target.px, y:target.py, t:0, life:0.7,
+                    color: ps.color || '#9ad4ff', fx:'ring' });
+        addEffect({ type:'cast', x:target.px, y:target.py, t:0, life:0.5,
+                    color: '#e8f6ff', fx:'burst' });
+        return { hpLost:0, absorbed:0 };
+      }
+    }
+  }
   const before = target.hp;
   let dmg = amount;
+  // 潮汐猎人·海妖外壳：受到的普通攻击伤害降低 15%
+  if(info && info.kind === 'attack'){
+    for(const sk of skillsOf(target))
+      if(sk.behavior === 'krakenShell') dmg *= (1 - (sk.atkReduce || 0));
+  }
   let absorbed = 0;
   if(target.shield > 0){
     absorbed = Math.min(target.shield, dmg);
@@ -1321,9 +1764,29 @@ function dealDamage(target, amount, info){
         if(r.hpLost > 0) UI.float(e, '-' + fmtN(r.hpLost), 'dmg');
       }
     }
+    // 军团指挥官·勇气之霎：受到普通攻击时概率立即反击攻击者（附带吸血）
+    if(sk.behavior === 'counterAttack' && info && info.kind === 'attack' &&
+       info.source && info.source !== target && info.source.alive &&
+       target.alive && chance(sk.chance)){
+      UI.float(target, '勇气之霎', 'skill');
+      spawnBullet(target, info.source, { kind:'attack', source:target, canCrit:true, canDodge:true,
+        lifestealPct:sk.ls,
+        effect:{ damage:{ type:'physical', stat:'atk', mult:sk.mult } } }, { skill:false });
+    }
   }
 
   const hpLost = Math.max(0, before - target.hp);
+  // 潮汐猎人·海妖外壳：累计受到的伤害达到阈值 → 立即清除负面效果
+  if(hpLost > 0 && target.alive){
+    for(const sk of skillsOf(target)){
+      if(sk.behavior !== 'krakenShell') continue;
+      target._ksAcc = (target._ksAcc || 0) + hpLost;
+      if(target._ksAcc >= target.maxHp * (sk.threshold || 0.2)){
+        target._ksAcc = 0;
+        krakenCleanse(target, sk);
+      }
+    }
+  }
   // 输出统计：记录伤害来源的本关累计输出（商店顶部输出榜）
   const dmgSrc = info && info.source;
   if(hpLost > 0 && dmgSrc && dmgSrc.dmgDealt != null) dmgSrc.dmgDealt += hpLost;
@@ -1339,14 +1802,108 @@ function healUnit(u, amt){
   return real;
 }
 
+/* 骷髅王·不死打击：本场战斗内提升生命上限
+   （remain:null 的 buff 永不到期，战斗开始时 buffs 清空 → 只在本场累积） */
+function addBattleMaxHp(u, amt, name){
+  if(!u || !u.alive || !(amt > 0)) return 0;
+  const a = Math.round(amt);
+  if(a <= 0) return 0;
+  let bf = (u.buffs || []).find(b => b.battleHp === name);
+  if(!bf){
+    bf = { stat:'hp', add:0, remain:null, battleHp:name, name:name };
+    u.buffs.push(bf);
+  }
+  bf.add += a;
+  u._frame = -1;
+  refreshMaxHp(u);
+  return a;
+}
+
+/* 屠夫·肉钩：把目标拉到其阵营的最前排（已占则换位），并刷新站位 */
+function pullToFront(t){
+  if(!t || !t.alive) return;
+  const frontRow = t.faction === 'enemy' ? GRID_ROWS - 1 : 0;
+  const old = { row:t.row, col:t.col, posType:t.posType };
+  t.posType = 'front';
+  if(cellTaken(frontRow, t.col, t)){
+    let placed = false;
+    for(const c of COL_ORDER){
+      if(!cellTaken(frontRow, c, t)){ t.row = frontRow; t.col = c; placed = true; break; }
+    }
+    if(!placed){
+      // 前排已满：把最靠中间的现任前排单位换到目标的原位
+      let occ = null;
+      for(const c of COL_ORDER){
+        occ = allUnits().find(x => x !== t && x.alive && x.row === frontRow && x.col === c);
+        if(occ) break;
+      }
+      if(occ){ occ.row = old.row; occ.col = old.col; occ.posType = old.posType; }
+      t.row = frontRow;
+    }
+  } else {
+    t.row = frontRow;
+  }
+  UI.float(t, '被拉到前排!', 'status');
+  if(UI && UI.renderBattle) UI.renderBattle();
+}
+
+/* 潮汐猎人·海妖外壳：清除眩晕/沉默/缴械、持续伤害与负面增益（无可清则不触发） */
+function krakenCleanse(u, sk){
+  if(!u || !u.alive) return;
+  let did = u.statuses.stun > 0 || u.statuses.silence > 0 || u.statuses.disarm > 0 || u.dots.length > 0;
+  const beforeN = u.buffs.length;
+  u.buffs = u.buffs.filter(b => !((b.mult != null && b.mult < 0) || (b.add != null && b.add < 0)));
+  if(u.buffs.length !== beforeN) did = true;
+  if(!did) return;
+  u.statuses.stun = 0; u.statuses.silence = 0; u.statuses.disarm = 0;
+  u.dots = [];
+  UI.float(u, '海妖外壳', 'good');
+  addEffect({ type:'cast', x:u.px, y:u.py, t:0, life:0.6, color:'#5ce1e6', fx:'ring' });
+}
+
+/* 骷髅王·重生：受到致命伤害时瞬间回满生命（每场一次），返回是否复活 */
+function tryRebirth(u){
+  if(!u || !u.alive || u.hp > 0) return false;
+  for(const sk of skillsOf(u)){
+    if(sk.behavior !== 'rebirth' || u._rebirthUsed) continue;
+    u._rebirthUsed = true;
+    u.hp = u.maxHp;
+    u.shield = 0;
+    u.statuses = { stun:0, silence:0, disarm:0, invuln:0 };
+    u.dots = [];
+    UI.float(u, '重生!', 'crit');
+    addEffect({ type:'cast', x:u.px, y:u.py, t:0, life:0.7, color:'#c9a6ff', fx:'ring' });
+    addEffect({ type:'cast', x:u.px, y:u.py, t:0, life:0.5, color:'#ffffff', fx:'burst' });
+    return true;
+  }
+  return false;
+}
+
 function applyStatus(u, key, sec){
   u.statuses[key] = Math.max(u.statuses[key], sec);
+}
+/* 巨魔战将·巨魔天赋：生命低于阈值时免疫晕眩 */
+function stunImmune(u){
+  if(!u || !u.alive) return false;
+  // 军团指挥官·决斗期间：免疫常规晕眩
+  if(u._duel && u._duel.remain > 0) return true;
+  for(const sk of skillsOf(u)){
+    if(sk.behavior === 'trollTalent' && u.maxHp > 0 && u.hp / u.maxHp < (sk.hpPct || 0.35))
+      return true;
+  }
+  return false;
 }
 /* 施加临时增益/减益（mult 为百分比、add 为固定值；负数即为减益） */
 function applyBuff(u, b){
   if(!u || !b) return;
+  // 野性狂暴：重复施放只刷新持续时间，保留已积累的攻速层数
+  if(b.frenzy){
+    const ex = u.buffs.find(x => x.frenzy && x.name === (b.name || '强化'));
+    if(ex){ ex.remain = b.dur; UI.float(u, b.name || '强化', 'good'); return; }
+  }
   u.buffs.push({ stat:b.stat, mult:b.mult, add:b.add, remain:b.dur,
                  charges:b.charges, hitMaxHpPct:b.hitMaxHpPct,
+                 frenzy:b.frenzy, per:b.per, stacks:b.stacks || 0,
                  name:b.name || '强化' });
   const neg = (b.mult != null && b.mult < 0) || (b.add != null && b.add < 0);
   UI.float(u, b.name || '强化', neg ? 'status' : 'good');
@@ -1366,6 +1923,8 @@ function applyDot(u, dot, source){
 
 function killUnit(u, killer){
   if(!u.alive) return;
+  // 骷髅王·重生：受到致命伤害 → 瞬间回满复活（每场一次）
+  if(tryRebirth(u)) return;
   u.alive = false;
   u.hp = 0;
   u.shield = 0;
@@ -1392,6 +1951,43 @@ function killUnit(u, killer){
       if(G.blessFlags && G.blessFlags.killHeal){
         const h2 = killer.maxHp * 0.15;
         if(healUnit(killer, h2) > 0) UI.float(killer, '+' + fmtN(h2), 'heal');
+      }
+      // 军团指挥官·决斗（被动）：击杀敌方英雄 → 永久提高攻击力
+      for(const sk of skillsOf(killer)){
+        if(sk.behavior === 'duelHeroKill' && isEnemyHero(u)){
+          killer.def.base.atk += (sk.atkPer || 0);
+          killer._frame = -1;
+          UI.float(killer, '击杀敌方英雄! 攻击永久+' + sk.atkPer, 'good');
+        }
+      }
+    }
+  }
+  // 屠夫·堆积腐肉：敌方单位在附近死亡 → 永久提高生命上限；敌方英雄被屠夫击杀则额外偷取
+  if(u.faction === 'enemy'){
+    for(const a of allUnits()){
+      if(!a.alive || a.faction !== 'player') continue;
+      const fh = skillsOf(a).find(s => s.behavior === 'fleshHeap');
+      if(!fh) continue;
+      if(Math.hypot((a.px || 0) - (u.px || 0), (a.py || 0) - (u.py || 0)) > (fh.range || 240)) continue;
+      let gain = u.maxHp * (fh.pct || 0.06);
+      if(killer === a && isEnemyHero(u)) gain += u.maxHp * (fh.stealPct || 0.1);
+      if(gain <= 0) continue;
+      a.def.base.hp += gain;
+      a._frame = -1;
+      refreshMaxHp(a);
+      UI.float(a, '堆积腐肉! 生命上限+' + fmtN(gain), 'good');
+    }
+  }
+  // 军团指挥官·决斗：任一方死亡 → 对手获胜永久加攻，并解除双方锁定
+  if(u._duel) u._duel = null;
+  for(const x of allUnits()){
+    if(x._duel && x._duel.tid === u.id){
+      x._duel = null;
+      const xs = skillsOf(x).find(s => s.behavior === 'duelHeroKill');
+      if(xs && xs.duel && xs.duel.atkWin){
+        x.def.base.atk += xs.duel.atkWin;
+        x._frame = -1;
+        UI.float(x, '决斗胜利! 攻击永久+' + xs.duel.atkWin, 'crit');
       }
     }
   }
@@ -1568,6 +2164,39 @@ function castOmnislash(u, sk){
               color:sk.color || '#ffe9a3', source:u });
 }
 
+/* 中毒（剧毒术士·毒刺）：叠加中毒层数，每 0.5 秒按层数结算伤害并减少 1 层 */
+function applyPoison(u, n, max, source){
+  if(!u || !u.alive) return;
+  if(!u.poison) u.poison = { n:0, acc:0, source:null };
+  u.poison.n = Math.min(max || 6, u.poison.n + n);
+  if(source) u.poison.source = source;
+  UI.float(u, '中毒 ×' + u.poison.n, 'dot');
+}
+
+/* 幻像法球（仙女龙）：向最远敌人直线飞行的魔法球，
+   飞行过程中对路径附近 25 范围内的敌方单位各造成伤害并沉默 */
+function castOrb(u, sk, targets){
+  if(!targets.length) return;
+  let aim = targets[0], best = -1;
+  for(const t of targets){
+    const d = Math.hypot(t.px - u.px, t.py - u.py);
+    if(d > best){ best = d; aim = t; }
+  }
+  const ox = u.px, oy = u.py - 14;
+  let dx = aim.px - ox, dy = (aim.py - 10) - oy;
+  const len = Math.hypot(dx, dy) || 1;
+  dx /= len; dy /= len;
+  const travel = len + 150;   // 穿过目标后继续飞出战场
+  bullets.push({
+    from:u, to:aim, payload:buildPayload(u, sk), skill:true,
+    color: sk.color || '#6bc8ff', icon: sk.icon || null,
+    sx:ox, sy:oy, tx: ox + dx * travel, ty: oy + dy * travel,
+    x:ox, y:oy, dist: travel, p:0,
+    speed: 560, r: 10, spin:0, trail: [], ctrl: null,
+    hitR: sk.radius || 25, hitIds: {}, pass: true,
+  });
+}
+
 /* 超声波（痛苦女王大招）：从施法者向外扩散的冲击环，
    波面扫到目标的瞬间才结算伤害——一道波扫过去，打到谁谁扣血 */
 function castWaveFx(u, targets, sk){
@@ -1582,6 +2211,15 @@ function castWaveFx(u, targets, sk){
   for(const h of hits) h.at = h.d / maxD * travel;
   addEffect({ type:'wave', t:0, life:travel + 0.5, x:u.px, y:u.py - 14,
               color:sk.color || '#8fe0ff', maxD, travel, hits });
+}
+
+/* 施法指向线：施法者 → 目标，0.2 秒画抵目标，全程 0.5 秒后渐隐消失。
+   让玩家一眼看清“是谁对谁释放”（单体技能 / 召唤 / 决斗）。
+   存单位引用而非坐标快照：新召唤单位下一帧才有 px/py，坐标未就绪时特效等待、就绪后再走。 */
+function castLinkFx(from, to, color){
+  if(!from || !to) return;
+  addEffect({ type:'link', t:0, life:0.5, from, to,
+              color: color || (from.faction === 'player' ? '#8fe3ff' : '#ff8f8f') });
 }
 
 /* 沿折线描边到进度 f（0~1，按段推进） */
@@ -1660,6 +2298,15 @@ function drawFX(dt){
   // 特效推进与绘制
   for(let i = effects.length - 1; i >= 0; i--){
     const e = effects[i];
+    // 指向线：等双方坐标就绪（召唤物下一帧才有 px/py），超时丢弃防止泄漏
+    if(e.type === 'link'){
+      const ready = e.from && e.to && e.from.px != null && e.to.px != null;
+      if(!ready){
+        e.wait = (e.wait || 0) + dt;
+        if(e.wait > 0.6) effects.splice(i, 1);
+        continue;
+      }
+    }
     e.t += dt;
     if(e.t >= e.life){ effects.splice(i, 1); continue; }
     const p = e.t / e.life;
@@ -1838,6 +2485,37 @@ function drawFX(dt){
           ctx.arc(sx, sy, Math.max(0.5, s.size * (1 - hp * 0.6)), 0, Math.PI * 2);
           ctx.fill();
         }
+      }
+      ctx.restore();
+    } else if(e.type === 'link'){
+      // 施法指向线：施法者 → 目标。前 0.2s 画线抵达，全程 0.5s 线性渐隐
+      const x1 = e.from.px, y1 = e.from.py - 16;
+      const x2 = e.to.px,   y2 = e.to.py - 12;
+      const a = clamp(1 - p, 0, 1);
+      const f = clamp(p * 2.5, 0, 1);            // 线条推进进度
+      const ex = x1 + (x2 - x1) * f, ey = y1 + (y2 - y1) * f;
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.setLineDash([10, 7]);
+      ctx.lineDashOffset = -e.t * 130;           // 虚线向目标流动，暗示“释放方向”
+      ctx.strokeStyle = hexA(e.color, 0.30 * a);  // 外辉光
+      ctx.lineWidth = 7;
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(ex, ey); ctx.stroke();
+      ctx.strokeStyle = hexA(e.color, 0.95 * a);  // 内芯
+      ctx.lineWidth = 2.4;
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(ex, ey); ctx.stroke();
+      ctx.setLineDash([]);
+      // 起点：施法者端小光点
+      ctx.fillStyle = 'rgba(255,255,255,' + (0.9 * a) + ')';
+      ctx.beginPath(); ctx.arc(x1, y1, 3.2 * a + 1, 0, Math.PI * 2); ctx.fill();
+      // 目标端：抵达后亮环 + 白心（标记“被打的是谁”）
+      if(f >= 1){
+        ctx.strokeStyle = hexA(e.color, 0.95 * a);
+        ctx.lineWidth = 2.2;
+        ctx.beginPath(); ctx.arc(x2, y2, 9 + (1 - a) * 8, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,' + (0.8 * a) + ')';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.arc(x2, y2, 5, 0, Math.PI * 2); ctx.stroke();
       }
       ctx.restore();
     } else if(e.type === 'flash'){

@@ -67,6 +67,9 @@ const Rogue = {
       return Object.keys(c).map(t => ENEMY_TYPES[t].name + '×' + c[t]).join('、');
     };
     const trait = (typeof LEVEL_TRAITS !== 'undefined') ? LEVEL_TRAITS[lv] : null;
+    // 本关类型标签（LEVEL_TYPES）：类型徽章 + 类型化难点提示；未知 type 容错为不显示
+    const ltype = (trait && trait.type && typeof LEVEL_TYPES !== 'undefined' && LEVEL_TYPES[trait.type])
+                ? LEVEL_TYPES[trait.type] : null;
     // 预计通关奖励：本关敌人 gold 合计 × 难度金币倍率（与 onBattleEnd 的结算同一算法）
     const estReward = id => Math.max(1, Math.round(
       rollEnemyTypes(lv, id).reduce((s, t) => s + (ENEMY_TYPES[t] ? ENEMY_TYPES[t].gold : 0), 0)
@@ -77,6 +80,7 @@ const Rogue = {
     const tipText = id => {
       const d = difficultyDef(id);
       let s = '【第 ' + lv + ' 关 · ' + (trait ? trait.icon + trait.name : '无主题') + '】';
+      if(ltype) s += '\n🏷️ 类型：' + ltype.icon + ltype.name + ' — ' + ltype.tip;
       if(trait) s += '\n⚠️ 难点：' + trait.diff;
       if(mini)  s += '\n👹 小Boss ' + mini.name + '：' + mini.trait;
       if(big)   s += '\n👿 大Boss ' + big.name + '：' + big.trait;
@@ -89,7 +93,9 @@ const Rogue = {
       '<div class="bless-wrap">' +
         '<div class="shop-top">' +
           '<span>⚔️ 即将进入第 <b>' + lv + '/' + MAX_LEVEL + '</b> 关</span>' +
-          (trait ? '<span class="diff-boss">🧭 本关主题 · <b>' + trait.icon + trait.name + '</b></span>' : '') +
+          (trait ? '<span class="diff-boss">🧭 本关主题 · <b>' + trait.icon + trait.name + '</b>' +
+                  (ltype ? '<span class="lv-type" title="' + attr(ltype.tip) + '">' + ltype.icon + ' ' + ltype.name + '</span>' : '') +
+                  '</span>' : '') +
           (mini ? '<span class="diff-boss">👹 小Boss · <b>' + mini.emoji + mini.name +
                   '</b>：' + mini.trait + '</span>' : '') +
           (big ? '<span class="diff-boss big">👿 大Boss · <b>' + big.emoji + big.name +
@@ -149,19 +155,19 @@ const Rogue = {
 
   renderStar(){
     const heroes = G.formation || [];
-    const cards = heroes.map((u, i) => this.starCardHtml(u, i)).join('') ||
+    const icons = heroes.map((u, i) => this.starIconHtml(u, i)).join('') ||
       '<div class="shop-hint">暂无英雄</div>';
     const html =
       '<div class="bless-wrap">' +
         '<div class="shop-top">' +
           '<span>🏆 第 <b>' + G.level + '</b> 关通过！</span>' +
           '<span class="gold-badge">💰 <b>' + G.gold + '</b></span>' +
-          '<span class="hint">点击一位英雄升 1 星（花金币，星级越高越贵：' +
-          '1星15 / 2星30 / 3星45 / 4星60 金；每星核心属性 +35%、攻速 +7%）</span>' +
+          '<span class="hint">升星花费：1星15 / 2星30 / 3星45 / 4星60 金 · ' +
+          '每星核心属性 +35%、攻速 +7%</span>' +
         '</div>' +
         '<div class="panel bless-main">' +
-          '<div class="p-title">⭐ 升星 · 点击一位英雄升 1 星（花费金币，越升越贵）</div>' +
-          '<div class="loot-cards bless-cards" id="starCards">' + cards + '</div>' +
+          '<div class="p-title star-ask">请点击英雄升星</div>' +
+          '<div class="star-icons" id="starCards">' + icons + '</div>' +
           (this.msg ? '<div class="loot-msg ' + this.msg.cls + '">' + this.msg.text + '</div>' : '') +
           '<div class="loot-foot">' +
             UI.sellBtnHtml() +
@@ -176,7 +182,7 @@ const Rogue = {
     const box = scr.querySelector('#starCards');
     if(box){
       box.addEventListener('click', ev => {
-        const card = ev.target.closest('.loot-card');
+        const card = ev.target.closest('.star-ico');
         if(!card) return;
         this.chooseStar(Number(card.dataset.i));
       });
@@ -187,7 +193,8 @@ const Rogue = {
     UI.updateHeader();
   },
 
-  starCardHtml(u, i){
+  /* 升星界面英雄图标按钮：图标 + 名字 + 星级 + 花费，悬停 title 看升星详情（含解锁技能名） */
+  starIconHtml(u, i){
     const star = u.star || 1;
     const smax = (typeof STAR_MAX !== 'undefined') ? STAR_MAX : 5;
     const maxed = star >= smax;
@@ -195,24 +202,16 @@ const Rogue = {
     const after = maxed ? before : starSkillCount(star + 1);
     const sk = after > before ? SKILLS[(u.def.skills || [])[after - 1]] : null;
     const cost = (typeof STAR_COST !== 'undefined') ? (STAR_COST[star] || 0) : 0;
-    const upLine = maxed
-      ? '<span class="lc-stats">已满星（' + smax + '★）</span>'
-      : '<span class="lc-stats">⭐ ' + star + ' → ' + (star + 1) +
-        '★ · 💰' + cost + ' 金 · 核心属性 +' + Math.round((typeof STAR_ATTR_PER !== 'undefined' ? STAR_ATTR_PER : 0.35) * 100) +
-        '%、攻速 +7%</span>';
-    const skLine = sk
-      ? '<span class="opt-skill">⚙ 升星解锁「' + sk.name + '」：' + sk.desc + '</span>'
-      : '';
-    return '<button class="loot-card star-card' + (maxed ? ' disabled' : '') + '" data-i="' + i + '">' +
-      '<span class="lc-top"><span class="opt-ico">' + u.def.emoji + '</span>' +
-      '<span class="opt-name">' + u.def.name +
-      '<span class="opt-tier" style="color:#ffd257;border-color:#ffd25766">' + star + '★</span></span>' +
-      '<span class="lc-pick">' + (maxed ? '满星' : '💰' + cost + '升星') + '</span></span>' +
-      upLine + skLine +
-      '<span class="lc-desc">' +
-      (maxed ? '该英雄已满星，选别的英雄吧'
-             : '点击花 ' + cost + ' 金币升 1 星（星级越高越贵），升完自动进入神器选择') +
-      '</span>' +
+    const tip = maxed
+      ? u.def.name + '：已满星（' + smax + '★）'
+      : u.def.name + '：⭐' + star + ' → ' + (star + 1) + '★ · 💰' + cost +
+        ' 金 · 核心属性 +35%、攻速 +7%' + (sk ? ' · 升星解锁「' + sk.name + '」' : '');
+    return '<button class="star-ico' + (maxed ? ' disabled' : '') + '" data-i="' + i +
+      '" title="' + tip + '"' + (maxed ? ' disabled' : '') + '>' +
+      '<span class="si-emoji">' + u.def.emoji + '</span>' +
+      '<span class="si-name">' + u.def.name + '</span>' +
+      '<span class="si-star">⭐ ' + star + '★</span>' +
+      '<span class="si-cost">' + (maxed ? '已满星' : '💰' + cost + ' 升星') + '</span>' +
       '</button>';
   },
 

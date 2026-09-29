@@ -1,5 +1,8 @@
 /* ================= 基础 ================= */
 :root{
+  /* 战场格子行高：随视口高度自适应，小显示器整体高度自动收窄
+     公式：8 行（上下两块 4 行网格）+ 固定开销 156px（顶栏/本关特点条/标签/中栏/内边距）<= 100vh */
+  --row-h:clamp(76px, calc((100vh - 156px) / 8), 112px);
   --bg:#0d1117;
   --panel:#151b26;
   --panel2:#0f1420;
@@ -28,7 +31,7 @@ button{font-family:inherit}
 
 /* ================= 顶栏 ================= */
 #topbar{
-  height:48px;
+  height:40px;
   display:flex;align-items:center;gap:18px;
   padding:0 16px;
   background:rgba(10,14,22,.85);
@@ -46,9 +49,9 @@ button{font-family:inherit}
 
 /* ================= 主布局 ================= */
 /* 主布局：战场与说明栏作为整体水平居中 */
-#main{display:flex;flex-direction:row;justify-content:center;height:calc(100vh - 48px)}
+#main{display:flex;flex-direction:row;justify-content:center;height:calc(100vh - 40px)}
 #stage{flex:0 1 auto;width:fit-content;min-width:600px;max-width:100%;min-height:0;overflow:auto;position:relative}
-.screen{min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px}
+.screen{min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px}
 .hidden{display:none !important}
 
 /* ================= 通用元素 ================= */
@@ -100,9 +103,23 @@ button{font-family:inherit}
 .screen-title{font-size:16px;color:var(--gold);letter-spacing:2px;margin-bottom:14px;height:24px}
 
 /* ================= 战场 ================= */
-#battlefield{position:relative;width:fit-content;margin:0 auto;padding:4px 0}
+#battlefield{position:relative;width:fit-content;margin:0 auto;padding:0}
+
+/* 本关特点条：战斗界面上方标出每关主题/类型/难点/Boss（单行省略，悬停整条看完整文本） */
+.lv-trait-bar{
+  width:min(96vw, 900px);flex:0 0 auto;margin:0 auto 4px;
+  display:flex;align-items:center;gap:8px;overflow:hidden;
+  background:#0e1524;border:1px solid var(--line);border-radius:8px;
+  padding:3px 10px;font-size:12px;line-height:1.5;color:var(--dim);
+  white-space:nowrap;cursor:help;
+}
+.lv-trait-bar .lv-type{margin-left:0}
+.lv-trait-bar .ltb-theme{color:var(--gold);font-weight:700;flex:0 0 auto}
+.lv-trait-bar .ltb-diff{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.lv-trait-bar .ltb-boss{flex:0 0 auto;color:#ffb46b}
+.lv-trait-bar .ltb-boss.big{color:#e2a5ff;font-weight:700}
 .faction-tag{
-  font-size:12px;color:var(--dim);height:20px;line-height:20px;
+  font-size:12px;color:var(--dim);height:14px;line-height:14px;
   text-align:center;letter-spacing:3px;
 }
 .faction.enemy .faction-tag{color:#ff9b9b}
@@ -111,8 +128,8 @@ button{font-family:inherit}
 .grid{
   display:grid;
   grid-template-columns:repeat(5,112px);
-  grid-template-rows:repeat(4,102px);
-  gap:6px;
+  grid-template-rows:repeat(4,var(--row-h));
+  gap:3px;
   justify-content:center;
 }
 .cell{
@@ -123,7 +140,7 @@ button{font-family:inherit}
 .faction.enemy .cell{background:rgba(255,80,80,.05);border-color:rgba(255,120,120,.20)}
 .faction.player .cell{background:rgba(80,160,255,.05);border-color:rgba(120,180,255,.20)}
 
-#midbar{height:44px;display:flex;align-items:center;justify-content:center;gap:14px}
+#midbar{height:28px;display:flex;align-items:center;justify-content:center;gap:14px}
 #midbar::before,#midbar::after{
   content:'';height:2px;flex:1;
 }
@@ -132,7 +149,7 @@ button{font-family:inherit}
 #turnFlag{
   font-size:13px;color:var(--gold);
   background:#1b2334;border:1px solid #33415e;border-radius:20px;
-  padding:5px 14px;min-width:160px;height:28px;line-height:18px;text-align:center;
+  padding:4px 12px;min-width:160px;height:24px;line-height:16px;text-align:center;
 }
 
 #fx{position:absolute;inset:0;pointer-events:none;z-index:6}
@@ -144,8 +161,8 @@ button{font-family:inherit}
   background:linear-gradient(180deg,#1c2536,#131a27);
   border:1px solid #33415e;
   border-radius:8px;
-  padding:3px 4px 4px;
-  display:flex;flex-direction:column;gap:2px;
+  padding:2px 3px 3px;
+  display:flex;flex-direction:column;gap:1px;
   cursor:pointer;overflow:hidden;
   transition:border-color .15s;
 }
@@ -238,33 +255,33 @@ button{font-family:inherit}
 .unit.u-boss .u-name{color:#ffd35c;font-weight:800}
 .unit.u-eboss .u-name{color:#e2a5ff;font-weight:800}
 .unit.u-boss .u-emoji,
-.unit.u-eboss .u-emoji{font-size:26px;line-height:28px;height:28px}
+.unit.u-eboss .u-emoji{font-size:21px;line-height:22px;height:22px}
 .unit.u-boss .hpbar .barfill{background:linear-gradient(180deg,#ffd35c,#ff7a1a)}
 .unit.u-eboss .hpbar .barfill{background:linear-gradient(180deg,#e89bff,#a44bff)}
 /* 普通精英小标识 */
 .unit.u-elite{border-color:#b47bff}
 
-.u-head{display:flex;align-items:center;justify-content:center;gap:4px;height:14px}
+.u-head{display:flex;align-items:center;justify-content:center;gap:4px;height:12px}
 .u-name{
-  font-size:10.5px;max-width:86px;height:14px;line-height:14px;
+  font-size:10px;max-width:86px;height:12px;line-height:12px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
 .u-tag{
   font-size:9px;color:var(--dim);border:1px solid var(--line);
   border-radius:3px;padding:0 2px;height:12px;line-height:10px;
 }
-.u-emoji{font-size:17px;line-height:19px;text-align:center;height:19px;
+.u-emoji{font-size:16px;line-height:17px;text-align:center;height:17px;
   text-shadow:0 0 6px rgba(255,255,255,.25)}
 
 .u-bars{display:flex;flex-direction:column;gap:1px}
-.bar{position:relative;height:13px;border-radius:6px;background:#0b0f16;overflow:hidden;border:1px solid rgba(0,0,0,.4)}
+.bar{position:relative;height:11px;border-radius:6px;background:#0b0f16;overflow:hidden;border:1px solid rgba(0,0,0,.4)}
 .bar i{position:absolute;left:0;top:0;bottom:0;display:block;width:0}
 .hpbar .barmax{width:100% !important;background:#20293a}
 .hpbar .bardelay{background:#ff5252;opacity:.9}
 .hpbar .barfill{background:linear-gradient(180deg,#74ffa4,#2ecc60)}
-.shbar{height:4px}
+.shbar{height:3px}
 .shbar .barfill{background:linear-gradient(180deg,#ffeab0,#ffc12e)}
-.mnbar{height:11px}
+.mnbar{height:9px}
 .mnbar .barfill{background:linear-gradient(180deg,#9fc2ff,#3f7dff)}
 .bar.hidden{display:none}
 
@@ -287,18 +304,18 @@ button{font-family:inherit}
 .bar-num{
   position:absolute;inset:0;
   display:flex;align-items:center;justify-content:center;
-  font-size:10.5px;font-weight:700;letter-spacing:-.3px;
+  font-size:9.5px;font-weight:700;letter-spacing:-.3px;
   color:#fff;pointer-events:none;z-index:3;
   text-shadow:0 1px 1px #000,0 0 2px #000,0 0 3px rgba(0,0,0,.9);
 }
-.mnbar .bar-num{font-size:9.5px}
+.mnbar .bar-num{font-size:9px}
 
 /* 状态 / BUFF 标签：卡片底部整行显示（文档流内，不遮挡血条与蓝条） */
 .u-st{
   display:flex;flex-wrap:wrap;gap:2px;justify-content:center;align-items:flex-start;
   margin-top:auto;
-  font-size:10px;line-height:13px;pointer-events:none;
-  max-height:26px;overflow:hidden;
+  font-size:10px;line-height:11px;pointer-events:none;
+  max-height:22px;overflow:hidden;
 }
 .u-st span{
   background:rgba(0,0,0,.6);border-radius:3px;padding:0 4px;
@@ -556,7 +573,7 @@ button{font-family:inherit}
 /* ================= 商店 ================= */
 #shopScreen{justify-content:flex-start}
 .shop-wrap{
-  width:100%;max-width:900px;
+  width:100%;max-width:1120px;
   display:flex;flex-direction:column;gap:10px;
   padding-top:6px;
 }
@@ -568,7 +585,8 @@ button{font-family:inherit}
 }
 .shop-top .reward{color:var(--gold);font-weight:700}
 .shop-top .hint{margin-left:auto;color:var(--dim);font-size:12px}
-.shop-cols{display:flex;gap:10px;height:min(520px, calc(100vh - 450px));flex:0 0 auto}
+/* 商店主体高度：上限提到 760px，随视口只预留顶栏/上下栏开销（原 450px 预留过多导致选项区太矮、文字显示不全） */
+.shop-cols{display:flex;gap:10px;height:min(760px, calc(100vh - 210px));flex:0 0 auto}
 .shop-heroes{width:190px;flex:0 0 190px;display:flex;flex-direction:column}
 .shop-desc{width:250px;flex:0 0 250px;display:flex;flex-direction:column}
 .shop-opts{flex:1;min-width:0;display:flex;flex-direction:column;overflow-y:auto}
@@ -605,6 +623,11 @@ button{font-family:inherit}
 .opt-group{margin-bottom:10px}
 .opt-group-title{font-size:12px;color:var(--dim);line-height:1.7;letter-spacing:2px;margin-bottom:4px}
 .opt-list{display:flex;flex-direction:column;gap:6px}
+/* 装备组：6 件装备改两列网格排布，纵向占用减半，一屏内完整显示文字（不出滚动） */
+.shop-opts .opt-group--eq .opt-list{
+  display:grid;grid-template-columns:repeat(2,1fr);gap:6px;
+}
+.shop-opts .opt-group--eq .opt-eq{height:100%}
 .opt{
   min-height:44px;
   background:#101725;border:1px solid var(--line);border-radius:8px;
@@ -639,13 +662,14 @@ button{font-family:inherit}
 /* ================= 战后装备三选一（选项整体屏幕居中） ================= */
 #lootScreen{justify-content:center}
 .loot-wrap{
-  width:100%;max-width:960px;
+  width:100%;max-width:1120px;
   display:flex;flex-direction:column;gap:10px;
   padding-top:6px;
 }
+/* 装备三选一主体：上限提到 780px，只预留顶栏/标题/底栏开销（原 430px 预留过多，卡片文字被压得显示不全） */
 .loot-cols{
   display:flex;gap:10px;
-  height:min(560px, calc(100vh - 430px));
+  height:min(780px, calc(100vh - 250px));
   flex:0 0 auto;
 }
 .loot-cols .shop-heroes{width:250px;flex:0 0 250px}
@@ -661,9 +685,9 @@ button{font-family:inherit}
 }
 .loot-card{
   background:#101725;border:1px solid var(--line);border-radius:10px;
-  padding:10px 11px;cursor:pointer;color:var(--text);font-size:13px;
-  display:flex;flex-direction:column;gap:7px;text-align:left;
-  transition:.15s;overflow-y:auto;min-height:150px;
+  padding:9px 11px;cursor:pointer;color:var(--text);font-size:13px;
+  display:flex;flex-direction:column;gap:6px;text-align:left;
+  transition:.15s;overflow:visible;min-height:140px;
 }
 .loot-card:hover{border-color:var(--gold);box-shadow:0 0 0 1px rgba(255,211,92,.25)}
 .loot-card:active{transform:translateY(1px)}
@@ -675,9 +699,9 @@ button{font-family:inherit}
   border:1px solid #2b3a57;border-radius:12px;padding:2px 10px;white-space:nowrap;
 }
 .loot-card:hover .lc-pick{color:var(--gold);border-color:var(--gold)}
-.loot-card .lc-stats{font-size:12px;color:#9fe8b4;line-height:1.65}
-.loot-card .lc-desc{font-size:11.5px;color:var(--dim);line-height:1.6;word-break:break-all}
-.loot-card .opt-skill{display:block;color:#d3b6ff;margin-top:3px;line-height:1.55}
+.loot-card .lc-stats{font-size:11.5px;color:#9fe8b4;line-height:1.55}
+.loot-card .lc-desc{font-size:11px;color:var(--dim);line-height:1.5;word-break:break-all}
+.loot-card .opt-skill{display:block;font-size:11px;color:#d3b6ff;margin-top:2px;line-height:1.5}
 
 /* —— 战后第①屏：标价装备卡（拖拽购买） —— */
 .loot-card .lc-price{
@@ -735,10 +759,34 @@ button{font-family:inherit}
 .opt-cat--phys { color:#ff9d9d;border-color:rgba(255,93,93,.75);background:rgba(255,93,93,.16) }
 .opt-cat--magic{ color:#c9b2ff;border-color:rgba(155,107,255,.75);background:rgba(155,107,255,.16) }
 
-/* —— 战后第②屏：升星卡 —— */
-.loot-card.star-card:hover{border-color:#ffd257;box-shadow:0 0 0 1px rgba(255,210,87,.35)}
-.loot-card.star-card .lc-pick{color:#ffd257;border-color:rgba(255,210,87,.5)}
-.loot-card.star-card:hover .lc-pick{color:#fff;border-color:#ffd257}
+/* —— 战后第②屏：升星（上方提示语「请点击英雄升星」+ 下方英雄图标列表） —— */
+.p-title.star-ask{
+  height:auto;line-height:1.6;text-align:center;letter-spacing:3px;
+  font-size:17px;font-weight:800;color:#ffd257;
+  text-shadow:0 0 12px rgba(255,210,87,.35);
+}
+.star-icons{
+  flex:1;min-height:150px;overflow:auto;padding:6px 2px;
+  display:flex;flex-wrap:wrap;gap:12px;
+  justify-content:center;align-content:flex-start;
+}
+.star-ico{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+  width:104px;padding:14px 8px;cursor:pointer;
+  background:#101725;border:1px solid var(--line);border-radius:12px;
+  font-family:inherit;transition:.15s;
+}
+.star-ico:hover{border-color:#ffd257;box-shadow:0 0 0 1px rgba(255,210,87,.35);transform:translateY(-2px)}
+.star-ico:active{transform:translateY(1px)}
+.star-ico.disabled{opacity:.45;cursor:not-allowed;box-shadow:none;transform:none}
+.star-ico .si-emoji{font-size:34px;line-height:1}
+.star-ico .si-name{font-size:12.5px;font-weight:700;color:var(--gold);white-space:nowrap}
+.star-ico .si-star{font-size:12px;font-weight:700;color:#ffd257}
+.star-ico .si-cost{
+  font-size:11px;color:#9fd0ff;border:1px solid rgba(159,208,255,.35);
+  border-radius:999px;padding:1px 8px;white-space:nowrap;
+}
+.star-ico:hover .si-cost{color:#fff;border-color:#ffd257}
 /* —— 金币显眼展示（战后购买屏尤其重要） —— */
 .gold-badge{
   display:inline-flex;align-items:center;gap:6px;
@@ -869,10 +917,12 @@ button{font-family:inherit}
   font-size:10px;background:#2a2440;border:1px solid #6b5a2a;
   border-radius:3px;color:#ffd35c;margin-left:4px;vertical-align:middle;
 }
-/* 星级：用星星个数表示（★ 重复 N 次），静态金色发光，独占一行更明显（不闪动） */
+/* 星级：用星星个数表示（★ 重复 N 次），静态金色发光；
+   绝对定位到卡片 emoji 行右上角，不再独占一整行，压缩卡片总高度 */
 .u-star{
-  flex:0 0 auto;text-align:center;
-  font-size:11.5px;line-height:12px;letter-spacing:1.5px;
+  position:absolute;top:15px;right:4px;z-index:5;
+  text-align:right;pointer-events:none;
+  font-size:11px;line-height:12px;letter-spacing:1.5px;
   color:#ffd35c;text-shadow:0 0 5px rgba(255,211,92,.8),0 1px 1px #000;
 }
 /* 通用星星串（商店 / 战利品 / 单位详情里的星级标记） */
@@ -935,6 +985,14 @@ button{font-family:inherit}
 /* ================= 肉鸽：难度 / 神器 / 改造（js/rogue.js） ================= */
 .diff-boss{font-size:12.5px;color:#ffb46b;line-height:1.5}
 .diff-boss.big{color:#e2a5ff;font-weight:700}
+/* 关卡类型徽章：主题名右侧，标明本关玩法类型；悬停（title）显示该类型通用应对提示 */
+.lv-type{
+  display:inline-block;margin-left:6px;padding:1px 8px;vertical-align:middle;
+  font-size:11.5px;font-weight:700;line-height:1.5;white-space:nowrap;
+  color:#9fd0ff;background:rgba(70,130,255,.14);
+  border:1px solid rgba(110,170,255,.5);border-radius:10px;cursor:help;
+}
+.lv-type:hover{border-color:#ffd35c;color:#ffd35c}
 .diff-card .lc-stats{font-size:11.5px;color:#9fd0ff;line-height:1.55}
 .diff-card[data-i="0"]:hover{border-color:#4fbf7a !important;box-shadow:0 0 0 1px rgba(79,191,122,.4)}
 .diff-card[data-i="1"]:hover{border-color:#ffd35c !important;box-shadow:0 0 0 1px rgba(255,211,92,.4)}
@@ -956,14 +1014,15 @@ button{font-family:inherit}
 .hero-pick.drop-ok::after{content:'✅ 松手购买';color:var(--green)}
 .upg-card-stat{font-size:12px;color:#9fe8b4;line-height:1.6}
 /* 战场状态角标：狂怒 / 护甲 / 尖刺 */
-.u-st span{margin-right:5px;font-size:10.5px;white-space:nowrap}
+.u-st span{margin-right:5px;font-size:10px;white-space:nowrap}
 
 /* ================= 装备选项精简版：大图标 / 名字+价格 / ★档位 ================= */
 /* 战利品卡（开局装备三选一 / 战后购买） */
 /* 大图标栏：占满整行，底部用一条分隔线与名字/价格栏隔开 */
 .loot-card .lc-icobig{
-  align-self:center;width:100%;font-size:38px;line-height:1;
-  text-align:center;padding-bottom:8px;
+  /* 图标由 38px 缩小约三分之一 → 25px，把纵向空间让给文字 */
+  align-self:center;width:100%;font-size:25px;line-height:1;
+  text-align:center;padding-bottom:5px;
   border-bottom:1px solid rgba(143,164,199,.28);
   filter:drop-shadow(0 3px 5px rgba(0,0,0,.55));
 }
@@ -997,10 +1056,13 @@ button{font-family:inherit}
   display:flex;align-items:center;justify-content:space-between;gap:8px;
 }
 .opt-eq .opt-name{font-weight:700;color:var(--gold)}
-.opt-eq .opt-meta{
-  display:flex;align-items:center;gap:7px;font-size:12.5px;line-height:1.5;
+/* 星级：直接放在大图标正下方，居中强调 */
+.opt-eq .opt-stars{
+  display:block;text-align:center;
+  font-size:13.5px;letter-spacing:2px;line-height:1.3;
+  filter:drop-shadow(0 0 5px rgba(255,211,92,.45));
 }
-.opt-eq .opt-cat{margin-left:0}
+.opt-eq .opt-cat{margin-left:5px;font-size:11px}
 /* 属性行：装备功能直接显示在卡面（如「攻击 +5，生命 +8」） */
 .opt-eq .opt-stats{
   display:block;font-size:11.5px;color:#9fe8b4;

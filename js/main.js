@@ -11,12 +11,26 @@ function heroPreview(def){
 /* ---------- 选择英雄界面（选满 3 名后自动进入第一关） ---------- */
 const chosenHeroes = [];
 
+/* 必现英雄：这些英雄每次刷新候选卡必定出现（已选中的自动跳过，槽位由随机英雄补足）。
+   以后新做的英雄只需把 id 加进这个数组即可必现。 */
+const GUARANTEED_HEROS = ['veno', 'puck', 'troll', 'ld', 'sniper',
+  'wraith', 'pudge', 'slardar', 'legion', 'tide', 'huskar'];
+
 function buildSelect(){
-  // 候选池：排除已选英雄，随机 3 张候选卡
+  // 候选池：排除已选英雄，随机 3 张候选卡；必现英雄优先占用卡位
   const pool = HEROES.filter(h => !chosenHeroes.some(c => c.id === h.id));
   const cand = [];
+  for(const id of GUARANTEED_HEROS){
+    const i = pool.findIndex(h => h.id === id);
+    if(i >= 0) cand.push(pool.splice(i, 1)[0]);
+  }
   while(cand.length < 3 && pool.length){
     cand.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+  }
+  // 打乱顺序，避免必现英雄固定排在前面
+  for(let i = cand.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = cand[i]; cand[i] = cand[j]; cand[j] = t;
   }
 
   // 进度标题 + 已选英雄列表
@@ -123,6 +137,12 @@ function startGame(heroDefs){
  * 依次进入：装备购买（6 件标价装备）→ 升星（花金币，星级越高越贵）→ 神器三选一
  * → 按概率随机穿插祝福三选一 → 下一关（奇遇事件 encounter.js 已停用，代码保留不进入流程） */
 function onBattleEnd(result){
+  // 召唤物仅单场有效：战斗一结束就从队伍里移除（蛇型守卫 / 熊灵伙伴等），
+  // 不进商店购买列表、不进升星列表、不写进存档
+  if(G.formation.some(u => u.isSummon)){
+    G.formation = G.formation.filter(u => !u.isSummon);
+    if(G.currentHeroIdx >= G.formation.length) G.currentHeroIdx = 0;
+  }
   if(result === 'win'){
     // 打通关数上限 → 胜利结算（不进装备选择 / 商店）
     if(typeof MAX_LEVEL !== 'undefined' && G.level >= MAX_LEVEL){
@@ -247,7 +267,8 @@ const Save = {
       blessings: (G.blessings || []).slice(),
       blessRound: G.blessRound || 0,
       encRound: G.encRound || 0,
-      formation: G.formation.map(u => ({
+      // 召唤物不入档（仅单场有效，中途刷新也不会把召唤物恢复成正式英雄）
+      formation: G.formation.filter(u => !u.isSummon).map(u => ({
         id: u.def.id,
         star: u.star || 1,
         kills: u.kills || 0,

@@ -151,7 +151,8 @@ const Shop = {
     const icons = { '装备':'⚔️', '英雄':'🧝' };
     return cats.map(cat => {
       const list = this.options.filter(o => o.cat === cat);
-      return '<div class="opt-group"><div class="opt-group-title">' + icons[cat] + ' ' + cat + '</div>' +
+      const cls = (cat === '装备') ? 'opt-group--eq' : 'opt-group--hero';
+      return '<div class="opt-group ' + cls + '"><div class="opt-group-title">' + icons[cat] + ' ' + cat + '</div>' +
         '<div class="opt-list">' +
         list.map(o => {
           if(o.cat === '装备'){
@@ -172,10 +173,12 @@ const Shop = {
             // 顺序：① 大图标（下方分隔线）② ★档位 ③ 名字+价格 ④ 分类 ⑤ 属性 ⑥ 技能
             return '<button class="opt opt-eq' + (catC ? ' opt--' + eq.cat : '') + '" data-opt="' + o.id + '"' + tip + '>' +
               '<span class="opt-icobig">' + eq.icon + '</span>' +
-              '<span class="opt-meta"><span class="lc-stars" style="color:' + tc + '">' +
+              // 星级直接放在图标正下方（居中）
+              '<span class="opt-stars lc-stars" style="color:' + tc + '">' +
                 '★'.repeat(tier) + '</span>' +
-              (catC ? '<span class="opt-cat opt-cat--' + eq.cat + '">' + catC.icon + '</span>' : '') + '</span>' +
-              '<span class="opt-row"><span class="opt-name">' + eq.name + '</span>' +
+              '<span class="opt-row"><span class="opt-name">' + eq.name +
+                (catC ? '<span class="opt-cat opt-cat--' + eq.cat + '">' + catC.icon + '</span>' : '') +
+              '</span>' +
               '<span class="opt-price">💰' + o.price + '</span></span>' +
               (statLine ? '<span class="opt-stats">' + statLine + '</span>' : '') +
               (sk ? '<span class="opt-skill">' + sk.desc + '</span>' : '') +

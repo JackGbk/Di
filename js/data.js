@@ -520,6 +520,100 @@ const SKILLS = {
     desc:'【被动】攻击附加血刃：目标每秒受到 攻击×30% 伤害，持续 3 秒。'
   },
 
+  /* ---- 新英雄技能：剧毒术士（中毒 / 召唤 / 生命移除） ---- */
+  venomSting: {
+    id:'venomSting', name:'毒刺', type:'passive', behavior:'attackPoison',
+    stacks:1, max:6,
+    desc:'【被动】普通攻击附加中毒：目标每 0.5 秒受到等同中毒层数的伤害并减少 1 层毒素（最多 6 层）。'
+  },
+  plagueWard: {
+    id:'plagueWard', name:'瘟疫守卫', type:'active', cost:24, cd:3,
+    icon:'🐍', color:'#7dff6b', fx:'ring', targeting:'self',
+    effect:{ summon:{ count:1, template:'ward', cap:2, dur:10 } },
+    desc:'【主动】瘟疫守卫：制造 1 条持续 10 秒的蛇型守卫（50 点生命、5 点攻击力，原地不动、对魔法免疫），场上最多 2 条。耗蓝 24，冷却 3 秒。'
+  },
+  poisonNova: {
+    id:'poisonNova', name:'剧毒新星', type:'active', cost:35, cd:5,
+    icon:'☣️', color:'#8dff5a', fx:'wave', targeting:'allEnemies',
+    effect:{ nova:{ dur:5, pct:0.35, flat:50 } },
+    desc:'【主动】剧毒新星：制造毒环向外扩散，被扫到的敌人在 5 秒内以“生命移除”方式共损失 最大生命 35% + 50 点（每 0.5 秒结算一次，无视护甲/护盾，生命值最低降至 1）。耗蓝 35，冷却 5 秒。'
+  },
+
+  /* ---- 新英雄技能：仙女龙（直线法球 / 相位转移 / 冷却缩减） ---- */
+  faerieOrb: {
+    id:'faerieOrb', name:'幻像法球', type:'active', cost:22, cd:3,
+    icon:'🔮', color:'#6bc8ff', fx:'orb', targeting:'allEnemies',
+    effect:{ damage:{ type:'magic', stat:'atk', mult:1.0 }, silence:1 },
+    desc:'【主动】幻像法球：向最远的敌人释放一个直线飞行的魔法球，飞行过程中对路径附近 25 范围内的敌方单位各造成 攻击×100% 魔法伤害并沉默 1 秒。耗蓝 22，冷却 3 秒。'
+  },
+  phaseShift: {
+    id:'phaseShift', name:'相位转移', type:'passive', behavior:'phaseShift',
+    cd:3, dur:0.5,
+    desc:'【被动】受到伤害时触发：短时间内改变自己所处的维度，0.5 秒内不受到任何伤害（持续期间战场上有视觉效果），触发后冷却 3 秒。'
+  },
+  dreamWeave: {
+    id:'dreamWeave', name:'梦境环绕', type:'passive', behavior:'cdReduce',
+    cds:{ faerieOrb:1.5, phaseShift:1 },
+    desc:'【被动】幻像法球冷却减少至 1.5 秒，相位转移冷却减少至 1 秒。'
+  },
+
+  /* ========== 巨魔战将：概率晕击 + 损失生命成长 + 野性狂暴 ========== */
+  berserkFury: {
+    id:'berserkFury', name:'狂战士之怒', type:'passive', behavior:'berserkFury',
+    chance:0.20, pct:0.5, dur:2,
+    desc:'【被动】攻击时有 20% 的概率造成额外 50% 攻击伤害并晕眩目标 2 秒。'
+  },
+  trollTalent: {
+    id:'trollTalent', name:'巨魔天赋', type:'passive', behavior:'trollTalent',
+    step:0.05, pct:0.08, hpPct:0.35,
+    desc:'【被动】每损失 5% 最大生命，攻击速度与生命恢复提高 8%；生命低于 35% 时免疫晕眩。'
+  },
+  wildFrenzy: {
+    id:'wildFrenzy', name:'野性狂暴', type:'active', cost:30, cd:5,
+    icon:'🌀', color:'#ff7a3c', fx:'ring', targeting:'self',
+    effect:{ buffs:[ { stat:'atkSpd', mult:0, dur:12, frenzy:true, per:0.08, stacks:0, name:'野性狂暴' } ] },
+    desc:'【主动】狂暴 12 秒：每次攻击提升 8% 攻速；改变攻击目标时攻速增益损失一半；状态结束时增益清零。耗蓝 30，冷却 5 秒。'
+  },
+
+  /* ========== 德鲁伊：召唤熊灵 + 协同攻速 + 变形术 ========== */
+  bearCompanion: {
+    id:'bearCompanion', name:'熊灵伙伴', type:'active', cost:26, cd:5,
+    icon:'🐻', color:'#c98a4b', fx:'ring', targeting:'self',
+    effect:{ summon:{ count:1, template:'bear', cap:1 } },
+    desc:'【主动】召唤一只熊灵伙伴为你战斗：英雄单位、拥有 3 点基础护甲、可携带物品，场上最多存在 1 只。耗蓝 26，冷却 5 秒。'
+  },
+  synergy: {
+    id:'synergy', name:'协同', type:'active', cost:24, cd:5,
+    icon:'🤝', color:'#8fe36b', fx:'ring', targeting:'self',
+    bearPack:{ stat:'atkSpd', mult:0.5, dur:4, name:'协同' },
+    desc:'【主动】与熊灵进入协同状态 4 秒：自己与场上的熊灵攻击速度提高 50%。耗蓝 24，冷却 5 秒。'
+  },
+  shapeshift: {
+    id:'shapeshift', name:'变形术', type:'active', cost:30, cd:5,
+    icon:'🐻', color:'#7fd4c1', fx:'burst', targeting:'self',
+    effect:{ buffs:[ { stat:'hp', mult:0.3, name:'变形·生命上限+30%' },
+                     { stat:'armor', add:5, name:'变形·护甲+5' } ] },
+    desc:'【主动】变换形态：生命上限提高 30%、护甲提高 5 点（持续到战斗结束）。耗蓝 30，冷却 5 秒。'
+  },
+
+  /* ---- 狙击手 ---- */
+  headshot: {
+    id:'headshot', name:'爆头', type:'passive', behavior:'headshot',
+    chance:0.15, pct:0.6, dur:1.5,
+    desc:'【被动】攻击有 15% 的概率造成额外 60% 攻击伤害，并晕眩目标 1.5 秒。'
+  },
+  aimedShell: {
+    id:'aimedShell', name:'瞄准', type:'passive', behavior:'aimedShell',
+    chance:0.2, mult:0.8, shred:3, dur:4, radius:90,
+    desc:'【被动】攻击有 20% 的概率发射榴弹：命中后在目标处爆炸，对范围内敌人造成 攻击力×80% 物理伤害，并降低其 3 点护甲（4 秒）。'
+  },
+  assassinate: {
+    id:'assassinate', name:'暗杀', type:'active', cost:30, cd:5,
+    icon:'🎯', color:'#ff5c5c', fx:'burst', targeting:'backRow',
+    effect:{ damage:{ type:'physical', stat:'atk', mult:0.5, flat:100 } },
+    desc:'【主动】伤害类型：物理。随机对敌方最后排的一个单位发射炮弹，造成 攻击力×50% + 100 点伤害。耗蓝 30，冷却 5 秒。'
+  },
+
   /* ---- 大 Boss 专属 ---- */
   magmaEruption: {
     id:'magmaEruption', name:'熔岩喷发', type:'active', cost:28, cd:3,
@@ -612,6 +706,124 @@ const SKILLS = {
     stats:{ atkSpd:0.15 },
     desc:'【词缀】攻击速度 +0.15。'
   },
+
+  /* ========== 骷髅王：吸血光环 → 不死打击 → 重生 ========== */
+  vampAura: {
+    id:'vampAura', name:'吸血光环', type:'passive', behavior:'vampAura',
+    healPct:0.10,
+    desc:'【被动】全体友军普攻命中后回复该次伤害 10% 的生命；光环持有者自身效果翻倍（20%）。'
+  },
+  undyingStrike: {
+    id:'undyingStrike', name:'不死打击', type:'passive', behavior:'undyingStrike',
+    convert:0.08, chance:0.2, maxHpPct:0.1,
+    desc:'【被动】物理：普攻造成伤害的 8% 转化为自身最大生命上限（仅本场战斗，可无限累积）；攻击时 20% 概率追加自身最大生命×10% 的物理伤害。'
+  },
+  rebirth: {
+    id:'rebirth', name:'重生', type:'passive', behavior:'rebirth',
+    desc:'【被动】受到致命伤害时瞬间回复全部生命（死亡瞬间自王座重生），每场战斗一次。'
+  },
+
+  /* ========== 屠夫：肉钩拉拽 → 堆积腐肉成长 → 腐烂自损 ========== */
+  meatHook: {
+    id:'meatHook', name:'肉钩', type:'active', cost:30, cd:5,
+    icon:'🪝', color:'#c7a17a', fx:'burst', targeting:'backRow',
+    effect:{ damage:{ type:'true', stat:'atk', mult:1.8 }, pull:true },
+    desc:'【主动】纯净：飞钩把随机一个最后排敌人拉到最前排，并造成 攻击×1.8 纯净（无视护甲）伤害。耗蓝 30，蓝满且冷却就绪即放（冷却 5 秒）。'
+  },
+  fleshHeap: {
+    id:'fleshHeap', name:'堆积腐肉', type:'passive', behavior:'fleshHeap',
+    pct:0.06, stealPct:0.10, range:240,
+    desc:'【被动】附近（240 范围）有敌方单位死亡时，永久提高自身 该单位最大生命×6% 的生命上限；若目标是敌方英雄（精英/首领）且被屠夫亲手击杀，额外偷取其最大生命×10%。'
+  },
+  rot: {
+    id:'rot', name:'腐烂', type:'passive', behavior:'rot',
+    stat:'ap', mult:0.5, selfPct:0.5, color:'#9ad46b',
+    desc:'【被动】魔法：每秒对最近的敌方单位造成 法强×50% 伤害，同时自身承受其中 50% 的反噬——贴身越久越危险。'
+  },
+
+  /* ========== 鱼人守卫：鱼人碎击 → 多重攻击 → 伤害加深 ========== */
+  slithereenCrush: {
+    id:'slithereenCrush', name:'鱼人碎击', type:'active', cost:28, cd:5,
+    icon:'🌊', color:'#6bd6d6', fx:'burst', targeting:'enemyRandom2',
+    effect:{ damage:{ type:'physical', stat:'atk', mult:1.6 }, stun:1.5 },
+    desc:'【主动】物理：猛击地面，对随机 2 个敌方单位各造成 攻击×1.6 伤害并眩晕 1.5 秒。耗蓝 28，蓝满且冷却就绪即放（冷却 5 秒）。'
+  },
+  multiHit: {
+    id:'multiHit', name:'多重攻击', type:'passive', behavior:'multiHit',
+    chance:0.3, hits:2, ratio:0.6,
+    desc:'【被动】攻击时 30% 概率快速挥动武器追加 2 次攻击（每次 60% 伤害），冰冻/中毒/伤口等攻击特效可多次触发。'
+  },
+  amplifyDamage: {
+    id:'amplifyDamage', name:'伤害加深', type:'active', cost:30, cd:5,
+    icon:'📉', color:'#ffbf5c', fx:'ring', targeting:'enemyHighestHp',
+    effect:{ buffs:[ { stat:'armor', add:-4, dur:6, name:'伤害加深·护甲-4' } ],
+             ampPhys:{ pct:0.15, max:0.45, dur:6 } },
+    desc:'【主动】降低目标 4 点护甲，并使其受到的物理伤害提高 15%（重复施放最多叠加至 +45%，持续 6 秒）。耗蓝 30，蓝满且冷却就绪即放（冷却 5 秒）。'
+  },
+
+  /* ========== 军团指挥官：破釜沉舟 → 勇气之霎 → 决斗 ========== */
+  pressTheAttack: {
+    id:'pressTheAttack', name:'破釜沉舟', type:'active', cost:30, cd:5,
+    icon:'⚔️', color:'#ff9f45', fx:'ring', targeting:'self',
+    effect:{ cleanse:true,
+             sacrificeArmor:{ pct:0.5, atkPer:1.5, dur:5 },
+             buffs:[ { stat:'atkSpd', mult:1.0, dur:5, name:'破釜沉舟·攻速+100%' } ] },
+    desc:'【主动】移除自身所有不利状态，攻速 +100%；舍弃自身一半护甲，每点舍弃的护甲转化为 1.5 点攻击力（两项均持续 5 秒）。耗蓝 30，蓝满且冷却就绪即放（冷却 5 秒）。'
+  },
+  momentOfCourage: {
+    id:'momentOfCourage', name:'勇气之霎', type:'passive', behavior:'counterAttack',
+    chance:0.3, mult:1.0, ls:60,
+    desc:'【被动】受到普通攻击时 30% 概率立即反击攻击者一次（攻击×100% 物理伤害、可暴击），并回复该次伤害 60% 的生命。'
+  },
+  duel: {
+    id:'duel', name:'决斗', type:'active', behavior:'duelHeroKill',
+    cost:36, cd:5, atkPer:4,
+    icon:'🗡️', color:'#ff5c5c', fx:'burst', targeting:'enemyHero',
+    duel:{ dur:5, atkWin:8 },
+    effect:{},
+    desc:'【被动】击杀敌方英雄（精英/首领）时永久 +4 攻击。【主动】向一名敌方英雄发起 5 秒决斗：双方被迫互相攻击、期间无法使用主动技能、免疫常规晕眩、无视魔法免疫；决斗中击杀对方永久再 +8 攻击，无人死亡则无影响。耗蓝 36，蓝满且冷却就绪即放（冷却 5 秒）。'
+  },
+
+  /* ========== 潮汐猎人：巨浪 → 海妖外壳 → 毁灭 ========== */
+  gush: {
+    id:'gush', name:'巨浪', type:'active', cost:26, cd:4,
+    icon:'🌊', color:'#6bc5ff', fx:'wave', targeting:'enemyFrontRow',
+    effect:{ damage:{ type:'magic', stat:'ap', mult:1.6 },
+             buffs:[ { stat:'armor', mult:-0.2, dur:4, name:'巨浪·护甲-20%' },
+                     { stat:'atkSpd', mult:-0.25, dur:4, name:'巨浪·攻速-25%' } ] },
+    desc:'【主动】魔法：向前方召唤巨浪冲击敌方前排单个目标，造成 法强×1.6 伤害，护甲 -20%、攻速 -25%，持续 4 秒。耗蓝 26，蓝满且冷却就绪即放。'
+  },
+  krakenShell: {
+    id:'krakenShell', name:'海妖外壳', type:'passive', behavior:'krakenShell',
+    atkReduce:0.15, interval:6, threshold:0.2,
+    desc:'【被动】每次受到的普通攻击伤害降低 15%；每 6 秒或累计承受相当于 20% 最大生命的伤害时，自动清除身上的眩晕/沉默/缴械、持续伤害与负面增益。'
+  },
+  ravage: {
+    id:'ravage', name:'毁灭', type:'active', cost:42, cd:5,
+    icon:'🐙', color:'#5ce1e6', fx:'burst', targeting:'allEnemies',
+    effect:{ damage:{ type:'magic', stat:'ap', mult:1.8 }, stun:3 },
+    desc:'【主动】魔法（招牌大招）：重击地面撕裂战场，对敌方全体各造成 法强×1.8 伤害并眩晕 3 秒。耗蓝 42，蓝满且冷却就绪即放（冷却 5 秒）。'
+  },
+
+  /* ========== 神灵武士：沸血之矛 → 活血术 → 狂战士之血 ========== */
+  burningSpear: {
+    id:'burningSpear', name:'沸血之矛', type:'passive', behavior:'burningSpear',
+    costPct:0.02, mult:0.7,
+    desc:'【被动】魔法：普攻额外造成 攻击×70% 魔法伤害，但每次攻击消耗自身 2% 最大生命。'
+  },
+  vitality: {
+    id:'vitality', name:'活血术', type:'active', cost:26, cd:5,
+    icon:'💉', color:'#ff7a7a', fx:'ring', targeting:'self',
+    effect:{ regenWindow:{ dur:5, pct:0.06 } },
+    desc:'【主动】持续 5 秒：按生命缺失比例提高恢复速度——期间每秒额外恢复 最大生命×6%×缺失比例（生命越低回得越快）。耗蓝 26，蓝满且冷却就绪即放（冷却 5 秒）。'
+  },
+  berserkBlood: {
+    id:'berserkBlood', name:'狂战士之血', type:'passive', behavior:'berserkBlood',
+    step:0.1, atkPer:0.05, spdPer:0.05,
+    fury:{ every:8, dur:3, lifesteal:40 },
+    mr:{ base:0.15, missing:0.45, max:0.75 },
+    desc:'【被动】每损失 10% 生命：攻击 +5%、攻速 +5%（最低血量合计 +50%/+50%）；每 8 秒进入 3 秒狂热，期间攻击吸血 +40%；并被动获得魔法抗性——生命越低抗性越高（15%→60%）。'
+  },
 };
 
 /* ================= 14 个英雄（小数值） =================
@@ -702,6 +914,72 @@ const HEROES = [
            hpRegen:2, manaRegen:2, lifesteal:10, mlifesteal:0 },
     skills:['overpower','furySwipes','enrage'],
     bio:'狂怒拍击的近战猛兽：超强力量瞬间拉满攻速连拍 3 下，怒意狂击撕开伤口越打越痛（最多 8 层），激怒让每下普攻额外附加自身最大生命 5% 的伤害。' },
+
+  { id:'veno', name:'剧毒术士', tier:40, pos:'back', role:'中毒持续与召唤', emoji:'🦎',
+    base:{ hp:104, maxMana:50, atk:9, atkSpd:1.0, ap:5, armor:2, dodge:4, crit:8, critMult:150,
+           hpRegen:1, manaRegen:3, lifesteal:0, mlifesteal:0 },
+    skills:['venomSting','plagueWard','poisonNova'],
+    bio:'用毒素拖垮敌人的术士：毒刺让每次普攻附加中毒（每 0.5 秒按层数掉血），瘟疫守卫召唤原地不动、魔免的蛇型守卫，剧毒新星以生命移除方式在 5 秒内榨干敌方全体 35% 最大生命 + 50 点（最低留 1 点）。' },
+
+  { id:'puck', name:'仙女龙', tier:60, pos:'back', role:'灵动法球与相位', emoji:'🧚',
+    base:{ hp:98, maxMana:50, atk:10, atkSpd:1.1, ap:6, armor:2, dodge:10, crit:10, critMult:155,
+           hpRegen:1, manaRegen:4, lifesteal:0, mlifesteal:0 },
+    skills:['faerieOrb','phaseShift','dreamWeave'],
+    bio:'穿梭维度的顽皮精灵：幻像法球直线穿透敌阵造成魔法伤害并沉默，相位转移在受击瞬间进入另一维度躲避一切伤害，梦境环绕把两者的冷却压到极限（1.5 秒 / 1 秒）。' },
+
+  { id:'troll', name:'巨魔战将', tier:40, pos:'mid', role:'攻速成长与狂暴', emoji:'👹',
+    base:{ hp:118, maxMana:50, atk:13, atkSpd:1.15, ap:0, armor:4, dodge:5, crit:15, critMult:160,
+           hpRegen:2, manaRegen:3, lifesteal:0, mlifesteal:0 },
+    skills:['berserkFury','trollTalent','wildFrenzy'],
+    bio:'越战越狂的部落战将：狂战士之怒让普攻有 20% 概率打出额外伤害并晕眩 2 秒，巨魔天赋把损失的生命变成攻速与恢复（低血还免晕），野性狂暴期间每打一刀攻速都在涨——别让它锁死目标。' },
+
+  { id:'ld', name:'德鲁伊', tier:40, pos:'front', role:'召唤与形态切换', emoji:'🦌',
+    base:{ hp:130, maxMana:50, atk:12, atkSpd:1.0, ap:4, armor:5, dodge:4, crit:8, critMult:150,
+           hpRegen:2, manaRegen:3, lifesteal:0, mlifesteal:0 },
+    skills:['bearCompanion','synergy','shapeshift'],
+    bio:'与熊灵并肩的前排德鲁伊：熊灵伙伴召唤出可携带物品、3 点护甲的英雄级熊灵，协同让自己与熊灵 4 秒内攻速 +50%，变形术则把生命上限与护甲一并抬高。' },
+
+  { id:'sniper', name:'狙击手', tier:60, pos:'back', role:'概率爆头与后排狙杀', emoji:'🎯',
+    base:{ hp:92, maxMana:50, atk:15, atkSpd:1.05, ap:0, armor:2, dodge:6, crit:18, critMult:160,
+           hpRegen:1, manaRegen:3, lifesteal:0, mlifesteal:0 },
+    skills:['headshot','aimedShell','assassinate'],
+    bio:'潜伏在最后排的冷面射手：爆头让普攻有概率打出额外伤害并晕眩，瞄准不时射出榴弹炸伤一片并削掉护甲，暗杀则直接把炮弹送到敌方最后排单位的脸上——50% 攻击力 + 100 点物理伤害。' },
+
+  { id:'wraith', name:'骷髅王', tier:60, pos:'front', role:'吸血与重生坦克', emoji:'💀',
+    base:{ hp:190, maxMana:50, atk:14, atkSpd:0.95, ap:6, armor:4, dodge:2, crit:8, critMult:150,
+           hpRegen:3, manaRegen:2, lifesteal:0, mlifesteal:0 },
+    skills:['vampAura','undyingStrike','rebirth'],
+    bio:'不朽的亡者君王：吸血光环让全队攻击命中回血、自己翻倍；不死打击把伤害转化为生命上限并概率按最大生命值追加重击；重生让他倒下后满血复活，甚至在受到致命伤害时瞬间回满。' },
+
+  { id:'pudge', name:'屠夫', tier:60, pos:'front', role:'钩拉控制与成长', emoji:'🍖',
+    base:{ hp:210, maxMana:50, atk:13, atkSpd:0.9, ap:14, armor:3, dodge:0, crit:5, critMult:150,
+           hpRegen:2, manaRegen:3, lifesteal:0, mlifesteal:0 },
+    skills:['meatHook','fleshHeap','rot'],
+    bio:'嗜血的钩索屠夫：肉钩把敌方最后排单位生生拽到最前排；附近敌人倒下时堆积腐肉永久抬高生命上限，钩杀敌方英雄更能偷取其生命；腐烂则持续灼烧最近的敌人与自己。' },
+
+  { id:'slardar', name:'鱼人守卫', tier:40, pos:'front', role:'控制与破甲', emoji:'🐟',
+    base:{ hp:170, maxMana:50, atk:15, atkSpd:1.1, ap:4, armor:4, dodge:4, crit:10, critMult:155,
+           hpRegen:2, manaRegen:2, lifesteal:0, mlifesteal:0 },
+    skills:['slithereenCrush','multiHit','amplifyDamage'],
+    bio:'深海的碎击者：鱼人碎击砸向地面，对随机两名敌人造成伤害并晕眩；多重攻击让武器快速连挥、攻击特效多次触发；伤害加深剥掉目标护甲并让其持续承受更多物理伤害。' },
+
+  { id:'legion', name:'军团指挥官', tier:60, pos:'front', role:'决斗单挑', emoji:'⚜️',
+    base:{ hp:175, maxMana:50, atk:16, atkSpd:1.15, ap:0, armor:5, dodge:5, crit:12, critMult:160,
+           hpRegen:2, manaRegen:2, lifesteal:0, mlifesteal:0 },
+    skills:['pressTheAttack','momentOfCourage','duel'],
+    bio:'无畏的决斗统帅：破釜沉舟移除负面状态、攻速翻倍，舍弃的护甲化作攻击力；勇气之霎让她受击时概率立即反击并吸血；决斗强制与敌方英雄互砍五秒——赢下决斗与击杀英雄都会永久加攻。' },
+
+  { id:'tide', name:'潮汐猎人', tier:60, pos:'front', role:'团控前排', emoji:'🌊',
+    base:{ hp:200, maxMana:50, atk:13, atkSpd:0.9, ap:12, armor:5, dodge:0, crit:5, critMult:150,
+           hpRegen:3, manaRegen:3, lifesteal:0, mlifesteal:0 },
+    skills:['gush','krakenShell','ravage'],
+    bio:'来自深渊的巨兽：巨浪冲刷敌方前排，削甲减速；海妖外壳定期或按累积伤害自动洗掉负面效果，并减免普攻伤害；毁灭重击地面，对全体敌人造成伤害并晕眩 3 秒。' },
+
+  { id:'huskar', name:'神灵武士', tier:40, pos:'mid', role:'卖血换输出', emoji:'🔥',
+    base:{ hp:130, maxMana:50, atk:12, atkSpd:1.2, ap:6, armor:2, dodge:6, crit:10, critMult:155,
+           hpRegen:2, manaRegen:3, lifesteal:0, mlifesteal:0 },
+    skills:['burningSpear','vitality','berserkBlood'],
+    bio:'以血为薪的狂战士：沸血之矛燃烧自身生命为攻击附加魔法伤害；活血术按生命缺失比例大幅提升回复；狂战士之血越残越强——损失生命换攻击力与攻速，周期性进入狂热吸血，且生命越低魔抗越高。' },
 ];
 
 /* 商店英雄档位池 */
@@ -983,45 +1261,67 @@ const ENEMY_TYPES = {
               skills:['bloodSickle'],                   pos:['front','mid'] },
   miniBoss: { name:'小Boss',   gold:6,  emoji:'👹', mult:{ hp:1,   atk:1,   armor:1   },
               skills:[],                                pos:['front'] },
-  bigBoss:  { name:'大Boss',   gold:15, emoji:'👿', mult:{ hp:1,   atk:1,   armor:1   },
+  bigBoss:  { name:'大Boss', gold:15, emoji:'👿', mult:{ hp:1, atk:1, armor:1   },
               skills:[],                                pos:['front'] },
 };
 
+/* 关卡类型标签：每关一个唯一类型（LEVEL_TRAITS[关卡].type 引用此处键，15 关各不相同）。
+ * icon/name 显示为难度选择屏顶部的类型徽章；tip = 类型化难点说明（该类型的通用应对手法，
+ * 悬停徽章与💰tooltip 显示；与 LEVEL_TRAITS.diff 的"本关具体难点"分层互补、互不替代）。 */
+const LEVEL_TYPES = {
+  skirmish:  { icon:'⚔️', name:'遭遇突袭', tip:'压力最低的试探关：脆皮小兵一拥而上，范围技能清得飞快，热身即可。' },
+  armor:     { icon:'🛡️', name:'铁壁高甲', tip:'高血高甲推进、普攻刮痧：上破甲或改用魔法输出，逐个点破。' },
+  fury:      { icon:'💢', name:'狂暴快攻', tip:'攻高皮脆、越伤越狂：务必速战速决，拖入持久战会被反噬。' },
+  elite:     { icon:'✨', name:'词缀试炼', tip:'精英带随机词缀（狂暴/荆棘/迅捷…）：开战前看词条，先秒威胁最大的。' },
+  overlord:  { icon:'🌋', name:'熔岩霸主', tip:'大Boss登场：周期全图伤害 + 点名后排，掐准爆发窗口并保住脆皮。' },
+  assassin:  { icon:'🥷', name:'切后突袭', tip:'高速单位直奔我方后排：前排要能自保，后排备好保命或反手控制。' },
+  siege:     { icon:'🏰', name:'要塞攻坚', tip:'敌人少但极耐打（高甲+减伤）：纯物理队非常吃力，法术与破甲是关键。' },
+  curse:     { icon:'💀', name:'亡语诅咒', tip:'死亡爆炸 + 持续流血：集火顺序错了会连环减员，先杀谁要提前想好。' },
+  swarm:     { icon:'🌊', name:'人海战术', tip:'满编小人海：范围/多人技能收益最高，单体点杀队慎选。' },
+  summon:    { icon:'🦑', name:'深渊召唤', tip:'Boss周期召唤 + 后排奶/法支援：必须先断奶切后排，否则越拖越多。' },
+  tempo:     { icon:'⚡', name:'疾风决斗', tip:'攻速与节奏的对决：攻速跟不上就会被连到死，控制与先手至关重要。' },
+  blood:     { icon:'🧛', name:'嗜血续航', tip:'吸血 + 流血的持久战：拖得越久对面越强，压血线打爆发才能赢。' },
+  ritual:    { icon:'🌑', name:'暗影仪式', tip:'双奶抬血 + 噬魔干扰：先断奶再逐个点破，提防魔法值被烧空。' },
+  onslaught: { icon:'🔥', name:'洪流总攻', tip:'满编全输出、开局爆发极高：开局减员等于崩盘，护盾治疗第一时间开。' },
+  coronation:{ icon:'👑', name:'腐化加冕', tip:'最终关混合编队全员带特性：机制怪 + 半血觉醒，阵容深度与应变缺一不可。' },
+};
+
 /* ================= 每关难点主题（15 关各不相同） =================
+ * type：本关类型标签（引用 LEVEL_TYPES 键，每关唯一）；
  * icon/name：介绍栏显示；diff：悬停💰价格小图标时显示的本关难点说明；
  * count：本关杂兵数量（少数精英关 2~3 个、人海关 4~5 个）——
  *        人海关需要 AOE/多人输出，少怪关需要单体点杀与破甲；
  * mobs：杂兵构成池（rollEnemyTypes 按顺序铺满，展示与实际生成完全一致）。 */
 const LEVEL_TRAITS = {
-  1:  { icon:'🌿', name:'林间前哨', count:4, diff:'新兵训练场：4 名脆皮小兵一拥而上，AOE 技能清得飞快，压力最低的一关。',
+  1:  { type:'skirmish', icon:'🌿', name:'林间前哨', count:4, diff:'新兵训练场：4 名脆皮小兵一拥而上，AOE 技能清得飞快，压力最低的一关。',
         mobs:['minion','minion','minion','minion'] },
-  2:  { icon:'🪨', name:'蛮兵营地', count:2, diff:'敌人只有 2 个但全是高血高甲蛮兵：普攻刮痧，集中法术或破甲手段逐个点破。',
+  2:  { type:'armor', icon:'🪨', name:'蛮兵营地', count:2, diff:'敌人只有 2 个但全是高血高甲蛮兵：普攻刮痧，集中法术或破甲手段逐个点破。',
         mobs:['brute','brute'] },
-  3:  { icon:'💢', name:'狂兽风暴', count:4, diff:'4 名狂战士攻高皮脆、越伤越狂：务必快速点杀或用控制拖过狂怒期，持久战会被反噬。',
+  3:  { type:'fury', icon:'💢', name:'狂兽风暴', count:4, diff:'4 名狂战士攻高皮脆、越伤越狂：务必快速点杀或用控制拖过狂怒期，持久战会被反噬。',
         mobs:['fury','fury','minion','fury'] },
-  4:  { icon:'😈', name:'精英巡逻', count:3, diff:'精英携带随机词缀（狂暴/荆棘/迅捷…），后排狙击手超远狙杀我方最脆单位，先切狙击手。',
+  4:  { type:'elite', icon:'😈', name:'精英巡逻', count:3, diff:'精英携带随机词缀（狂暴/荆棘/迅捷…），后排狙击手超远狙杀我方最脆单位，先切狙击手。',
         mobs:['elite','minion','sniper','elite'] },
-  5:  { icon:'🌋', name:'熔岩裂隙', count:3, diff:'熔岩巨兽（大Boss）尖刺反伤 + 每 8 秒熔岩喷发灼烧全体；后排狙击手点名脆皮，注意爆发与回复。',
+  5:  { type:'overlord', icon:'🌋', name:'熔岩裂隙', count:3, diff:'熔岩巨兽（大Boss）尖刺反伤 + 每 8 秒熔岩喷发灼烧全体；后排狙击手点名脆皮，注意爆发与回复。',
         mobs:['brute','sniper','brute','warlock','elite'] },
-  6:  { icon:'🏃', name:'疾影密林', count:4, diff:'疾行者高速切后排 + 狙击手定点狙杀：前排还站着时后排已经被切，需要点杀。',
+  6:  { type:'assassin', icon:'🏃', name:'疾影密林', count:4, diff:'疾行者高速切后排 + 狙击手定点狙杀：前排还站着时后排已经被切，需要点杀。',
         mobs:['swift','minion','swift','sniper','elite'] },
-  7:  { icon:'🛡️', name:'铁壁要塞', count:2, diff:'本关只有 2 个敌人：双蛮兵高甲压阵 + 石肤巨人（受伤-30%），纯物理队会打得非常吃力。',
+  7:  { type:'siege', icon:'🛡️', name:'铁壁要塞', count:2, diff:'本关只有 2 个敌人：双蛮兵高甲压阵 + 石肤巨人（受伤-30%），纯物理队会打得非常吃力。',
         mobs:['brute','brute','minion','swift','elite'] },
-  8:  { icon:'👻', name:'亡语沼泽', count:4, diff:'复仇之魂死亡爆炸 + 血刃手普攻挂流血 + 术士腐蚀法术：集火顺序错了会连环减员。',
+  8:  { type:'curse', icon:'👻', name:'亡语沼泽', count:4, diff:'复仇之魂死亡爆炸 + 血刃手普攻挂流血 + 术士腐蚀法术：集火顺序错了会连环减员。',
         mobs:['bloodletter','elite','warlock','fury','brute'] },
-  9:  { icon:'🌊', name:'人海战术', count:5, diff:'满编 5 人小人海 + 后排术士 AOE：范围技能收益最高的一关，单体点杀队慎选挑战。',
+  9:  { type:'swarm', icon:'🌊', name:'人海战术', count:5, diff:'满编 5 人小人海 + 后排术士 AOE：范围技能收益最高的一关，单体点杀队慎选挑战。',
         mobs:['minion','minion','warlock','minion','minion'] },
-  10: { icon:'👿', name:'深渊之门', count:3, diff:'深渊领主（大Boss）召唤小卒并眩晕；后排咒师回血、术士 AOE、狙击手点杀——必须先秒后排。',
+  10: { type:'summon', icon:'👿', name:'深渊之门', count:3, diff:'深渊领主（大Boss）召唤小卒并眩晕；后排咒师回血、术士 AOE、狙击手点杀——必须先秒后排。',
         mobs:['hexer','warlock','sniper','elite','brute'] },
-  11: { icon:'⚡', name:'疾风决斗', count:4, diff:'疾行者高速连斩 + 后排狙击手狙杀 + 迅捷词缀：我方攻速跟不上就会被连到死。',
+  11: { type:'tempo', icon:'⚡', name:'疾风决斗', count:4, diff:'疾行者高速连斩 + 后排狙击手狙杀 + 迅捷词缀：我方攻速跟不上就会被连到死。',
         mobs:['swift','sniper','swift','minion','elite'] },
-  12: { icon:'🧛', name:'嗜血盛宴', count:4, diff:'嗜血伯爵吸血 + 血刃手流血不止，狂战士与蛮兵混编：持久战等于给Boss回血。',
+  12: { type:'blood', icon:'🧛', name:'嗜血盛宴', count:4, diff:'嗜血伯爵吸血 + 血刃手流血不止，狂战士与蛮兵混编：持久战等于给Boss回血。',
         mobs:['bloodletter','brute','elite','fury','hexer'] },
-  13: { icon:'🌑', name:'噩梦仪式', count:3, diff:'敌人只有 3 个但个个带招：双咒师每秒抬血 + 术士暗影法术 + 暗影祭司噬魔，先断奶再逐个点破。',
+  13: { type:'ritual', icon:'🌑', name:'噩梦仪式', count:3, diff:'敌人只有 3 个但个个带招：双咒师每秒抬血 + 术士暗影法术 + 暗影祭司噬魔，先断奶再逐个点破。',
         mobs:['hexer','warlock','hexer','elite','minion'] },
-  14: { icon:'🔥', name:'狂怒洪流', count:5, diff:'满编 5 人全输出阵容：狂战士冲脸、血刃手流血、狙击/术士后排轰炸，开局爆发极高。',
+  14: { type:'onslaught', icon:'🔥', name:'狂怒洪流', count:5, diff:'满编 5 人全输出阵容：狂战士冲脸、血刃手流血、狙击/术士后排轰炸，开局爆发极高。',
         mobs:['fury','bloodletter','elite','sniper','warlock'] },
-  15: { icon:'👑', name:'腐化之心', count:4, diff:'最终关：古树之心半血觉醒（+狂怒+尖刺）并召唤树卫，混合编队全员带特性（流血/治疗/法术）。',
+  15: { type:'coronation', icon:'👑', name:'腐化之心', count:4, diff:'最终关：古树之心半血觉醒（+狂怒+尖刺）并召唤树卫，混合编队全员带特性（流血/治疗/法术）。',
         mobs:['bloodletter','hexer','elite','warlock','fury'] },
 };
 
@@ -1088,6 +1388,10 @@ const BIG_BOSSES = {
 const SUMMON_TEMPLATES = {
   abyss: { name:'深渊小卒', emoji:'🦑', mult:{ hp:0.9, atk:0.9, armor:1.0 }, gold:0, skills:[] },
   guard: { name:'树卫',     emoji:'🌿', mult:{ hp:2.0, atk:0.7, armor:2.0 }, gold:0, skills:['bossPassive'] },
+  /* 蛇型守卫（剧毒术士·瘟疫守卫）：flat 固定属性不随关卡成长，原地不动、对魔法免疫、10 秒后消散 */
+  ward:  { name:'蛇型守卫', emoji:'🐍', flat:{ hp:50, atk:5 }, magicImmune:true, dur:10, gold:0, skills:[] },
+  /* 熊灵伙伴（德鲁伊）：flat 固定属性；英雄单位（进入 G.formation，可直接装备物品），3 点基础护甲 */
+  bear:  { name:'熊灵伙伴', emoji:'🐻', flat:{ hp:160, atk:13, atkSpd:1.0, armor:3 }, gold:0, skills:[] },
 };
 
 /* 每关杂兵数量（不含 Boss）：按本关主题 count 走——
